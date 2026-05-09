@@ -1,22 +1,21 @@
 package com.shonkware.droidmodloader.engine.install
 
 import java.io.File
-import java.io.FileOutputStream
 import java.util.zip.ZipInputStream
 
-class ModExtractor(
-    private val tempDir: File,
-    private val modsDir: File
-) {
+class ZipArchiveExtractor : ArchiveExtractor {
 
-    fun extractArchive(archive: File): File {
+    override fun supports(archive: File): Boolean {
+        return archive.extension.lowercase() == "zip"
+    }
+
+    override fun extract(archive: File, tempDir: File, modsDir: File): File {
         val extractFolder = File(tempDir, System.currentTimeMillis().toString())
         extractFolder.mkdirs()
 
         extractZip(archive, extractFolder)
 
         val normalizedRoot = normalizeExtractedStructure(extractFolder)
-
         val modName = archive.nameWithoutExtension
         val finalDir = File(modsDir, modName)
 
@@ -25,37 +24,26 @@ class ModExtractor(
         }
 
         normalizedRoot.copyRecursively(finalDir, overwrite = true)
-
         extractFolder.deleteRecursively()
 
         return finalDir
     }
 
     private fun extractZip(zipFile: File, outputDir: File) {
+        val buffer = ByteArray(1024 * 8)
+
         ZipInputStream(zipFile.inputStream()).use { zis ->
             var entry = zis.nextEntry
 
             while (entry != null) {
                 val newFile = File(outputDir, entry.name)
 
-                val outputCanonicalPath = outputDir.canonicalPath
-                val newFileCanonicalPath = newFile.canonicalPath
-
-                if (!newFileCanonicalPath.startsWith(outputCanonicalPath + File.separator)
-                    && newFileCanonicalPath != outputCanonicalPath
-                ) {
-                    throw SecurityException("Unsafe ZIP entry: ${entry.name}")
-                }
-
                 if (entry.isDirectory) {
                     newFile.mkdirs()
                 } else {
                     newFile.parentFile?.mkdirs()
-
-                    FileOutputStream(newFile).use { fos ->
-                        val buffer = ByteArray(8192)
+                    newFile.outputStream().use { fos ->
                         var len = zis.read(buffer)
-
                         while (len > 0) {
                             fos.write(buffer, 0, len)
                             len = zis.read(buffer)
@@ -63,7 +51,6 @@ class ModExtractor(
                     }
                 }
 
-                zis.closeEntry()
                 entry = zis.nextEntry
             }
         }
@@ -74,24 +61,16 @@ class ModExtractor(
 
         if (children.size == 1 && children[0].isDirectory) {
             val child = children[0]
-
-            val childDataFolder = child.listFiles()?.firstOrNull {
-                it.isDirectory && it.name.equals("Data", ignoreCase = true)
+            val dataFolder = File(child, "Data")
+            if (dataFolder.exists()) {
+                return dataFolder
             }
-
-            if (childDataFolder != null) {
-                return childDataFolder
-            }
-
             return child
         }
 
-        val rootDataFolder = children.firstOrNull {
-            it.isDirectory && it.name.equals("Data", ignoreCase = true)
-        }
-
-        if (rootDataFolder != null) {
-            return rootDataFolder
+        val dataFolder = File(root, "Data")
+        if (dataFolder.exists()) {
+            return dataFolder
         }
 
         return root

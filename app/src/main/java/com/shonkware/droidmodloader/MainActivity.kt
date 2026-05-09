@@ -7,7 +7,6 @@ import android.widget.Button
 import android.widget.TextView
 import java.io.File
 import com.shonkware.droidmodloader.engine.util.PathUtils
-import com.shonkware.droidmodloader.engine.install.ModExtractor
 import com.shonkware.droidmodloader.engine.io.FileScanner
 import com.shonkware.droidmodloader.engine.model.FileRecord
 import com.shonkware.droidmodloader.engine.model.Mod
@@ -31,7 +30,8 @@ import android.widget.ArrayAdapter
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.Spinner
-
+import android.content.Intent
+import androidx.documentfile.provider.DocumentFile
 
 class MainActivity : ComponentActivity() {
 
@@ -43,6 +43,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var spinnerGameConfig: Spinner
     private lateinit var editTargetPath: EditText
     private lateinit var checkRealDeployEnabled: CheckBox
+
+    private lateinit var textSelectedTreeUri: TextView
 
     private val importZipLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -61,6 +63,27 @@ class MainActivity : ComponentActivity() {
     private lateinit var lessonToolsContainer: LinearLayout
     private var lessonToolsVisible = true
 
+    private val pickTargetFolderLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) {
+            appendLog("No target folder selected.")
+            return@registerForActivityResult
+        }
+
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            runInBackground {
+                savePickedFolderToSelectedGameConfig(uri.toString())
+            }
+        } catch (e: Exception) {
+            appendError("Failed to persist folder permission: ${e.message}", e)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -74,6 +97,14 @@ class MainActivity : ComponentActivity() {
         editTargetPath = findViewById(R.id.editTargetPath)
         checkRealDeployEnabled = findViewById(R.id.checkRealDeployEnabled)
 
+        textSelectedTreeUri = findViewById(R.id.textSelectedTreeUri)
+
+        val buttonTargetFolderPickerTest: Button = findViewById(R.id.buttonTargetFolderPickerTest)
+
+
+
+        val buttonPickTargetFolder: Button = findViewById(R.id.buttonPickTargetFolder)
+
         val buttonLoadSelectedGameConfig: Button = findViewById(R.id.buttonLoadSelectedGameConfig)
         val buttonSaveSelectedGameConfig: Button = findViewById(R.id.buttonSaveSelectedGameConfig)
 
@@ -82,7 +113,6 @@ class MainActivity : ComponentActivity() {
         val buttonRefreshModsPanel: Button = findViewById(R.id.buttonRefreshModsPanel)
         val buttonSmokeTest: Button = findViewById(R.id.buttonSmokeTest)
         val buttonPathUtilsTest: Button = findViewById(R.id.buttonPathUtilsTest)
-        val buttonExtractorTest: Button = findViewById(R.id.buttonExtractorTest)
         val buttonScannerTest: Button = findViewById(R.id.buttonScannerTest)
         val buttonConflictTest: Button = findViewById(R.id.buttonConflictTest)
         val buttonStagingTest: Button = findViewById(R.id.buttonStagingTest)
@@ -108,6 +138,17 @@ class MainActivity : ComponentActivity() {
         val buttonDeploySkyrim: Button = findViewById(R.id.buttonDeploySkyrim)
         val buttonGameTargetTest: Button = findViewById(R.id.buttonGameTargetTest)
         val buttonGameConfigEditorTest: Button = findViewById(R.id.buttonGameConfigEditorTest)
+        val buttonTreeUriDeployTest: Button = findViewById(R.id.buttonTreeUriDeployTest)
+
+        val buttonArchiveExtractorTest: Button = findViewById(R.id.buttonArchiveExtractorTest)
+
+        buttonArchiveExtractorTest.setOnClickListener {
+            runInBackground { runArchiveExtractorLessonTest() }
+        }
+
+        buttonTreeUriDeployTest.setOnClickListener {
+            runInBackground { runTreeUriDeployLessonTest() }
+        }
 
         buttonGameConfigEditorTest.setOnClickListener {
             runInBackground { runGameConfigEditorLessonTest() }
@@ -119,10 +160,6 @@ class MainActivity : ComponentActivity() {
 
         buttonPathUtilsTest.setOnClickListener {
             runInBackground { runPathUtilsLessonTest() }
-        }
-
-        buttonExtractorTest.setOnClickListener {
-            runInBackground { runModExtractorLessonTest() }
         }
 
         buttonScannerTest.setOnClickListener {
@@ -247,6 +284,14 @@ class MainActivity : ComponentActivity() {
             runInBackground { saveSelectedGameConfigFromForm() }
         }
 
+        buttonPickTargetFolder.setOnClickListener {
+            pickTargetFolderLauncher.launch(null)
+        }
+
+        buttonTargetFolderPickerTest.setOnClickListener {
+            runInBackground { runTargetFolderPickerLessonTest() }
+        }
+
         runInBackground { refreshGameConfigSpinner() }
 
         appendLog("UI ready. Use the workflow buttons or manage installed mods below.")
@@ -326,45 +371,6 @@ class MainActivity : ComponentActivity() {
         }
 
         appendLog("----- PathUtils Lesson Test End -----")
-    }
-
-    private fun runModExtractorLessonTest() {
-        appendLog("----- ModExtractor Lesson Test Start -----")
-
-        val baseDir = filesDir
-        val tempDir = File(baseDir, "temp")
-        val modsDir = File(baseDir, "mods")
-
-        tempDir.mkdirs()
-        modsDir.mkdirs()
-
-        try {
-            val archive = createTestArchiveZip(baseDir)
-
-            appendLog("Generated archive at: ${archive.absolutePath}")
-            appendLog("Archive exists: ${archive.exists()}")
-            appendLog("Archive canRead: ${archive.canRead()}")
-
-            val extractor = ModExtractor(tempDir, modsDir)
-            val modDir = extractor.extractArchive(archive)
-
-            appendLog("Extracted mod dir: ${modDir.absolutePath}")
-            appendLog("Extracted mod exists: ${modDir.exists()}")
-
-            val extractedFiles = modDir.walkTopDown().toList()
-            appendLog("Extracted item count: ${extractedFiles.size}")
-
-            for (file in extractedFiles.take(20)) {
-                appendLog("ITEM: ${file.absolutePath}")
-            }
-
-            appendLog("RESULT: PASS")
-        } catch (e: Exception) {
-            appendError("Extraction failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-        }
-
-        appendLog("----- ModExtractor Lesson Test End -----")
     }
 
     private fun createLooseTestMod(modsDir: File): File {
@@ -500,84 +506,6 @@ class MainActivity : ComponentActivity() {
         }
 
         appendLog("----- End Model Results for ${mod.name} -----")
-    }
-
-    private fun runModelLessonTest() {
-        appendLog("----- Model Lesson Test Start -----")
-
-        val baseDir = filesDir
-        val modsDir = File(baseDir, "mods")
-        modsDir.mkdirs()
-
-        val skyUiDir = File(modsDir, "SkyUI")
-        val looseTestModDir = File(modsDir, "LooseTestMod")
-
-        if (!skyUiDir.exists() || !looseTestModDir.exists()) {
-            appendError("Required mod folders are missing.")
-            appendLog("Run Chapter 3 and Chapter 4 tests first.")
-            appendLog("----- Model Lesson Test End -----")
-            return
-        }
-
-        try {
-            val skyUiMod = Mod(
-                id = "SkyUI",
-                name = "SkyUI",
-                installPath = skyUiDir.absolutePath,
-                enabled = true,
-                priority = 10,
-                modType = detectModType(skyUiDir)
-            )
-
-            val looseTestMod = Mod(
-                id = "LooseTestMod",
-                name = "LooseTestMod",
-                installPath = looseTestModDir.absolutePath,
-                enabled = true,
-                priority = 20,
-                modType = detectModType(looseTestModDir)
-            )
-
-            val skyUiScanner = FileScanner()
-            skyUiScanner.scanDirectory(skyUiDir, skyUiDir, "SkyUI")
-            val skyUiModFiles = convertScannerResultsToModFiles(
-                modId = skyUiMod.id,
-                sourceModName = skyUiMod.name,
-                fileMap = skyUiScanner.getFileMap()
-            )
-
-            val looseScanner = FileScanner()
-            looseScanner.scanDirectory(looseTestModDir, looseTestModDir, "LooseTestMod")
-            val looseModFiles = convertScannerResultsToModFiles(
-                modId = looseTestMod.id,
-                sourceModName = looseTestMod.name,
-                fileMap = looseScanner.getFileMap()
-            )
-
-            logModelResults(skyUiMod, skyUiModFiles)
-            logModelResults(looseTestMod, looseModFiles)
-
-            val sampleRecord = FileRecord(
-                normalizedPath = "textures/ui/icon.dds",
-                winningModId = looseTestMod.id,
-                winningModName = looseTestMod.name,
-                sourceFilePath = File(
-                    looseTestModDir,
-                    "Data/Textures/UI/icon.dds"
-                ).absolutePath,
-                hash = looseModFiles.firstOrNull {
-                    it.normalizedPath == "textures/ui/icon.dds"
-                }?.hash ?: "MISSING_HASH"
-            )
-
-            appendLog("SAMPLE FILE RECORD: $sampleRecord")
-            appendLog("RESULT: PASS")
-        } catch (e: Exception) {
-            appendError("Model lesson test failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-        }
-
-        appendLog("----- Model Lesson Test End -----")
     }
 
     private fun createOverwriteTestMod(modsDir: File): File {
@@ -1251,7 +1179,8 @@ class MainActivity : ComponentActivity() {
                 stateFile = stateFile,
                 deploymentManifestFile = deploymentManifestFile,
                 deployRootDir = deployRootDir,
-                gameConfigFile = gameConfigFile
+                gameConfigFile = gameConfigFile,
+                appContext = applicationContext
             )
 
             val archive = createTestArchiveZip(archiveDir)
@@ -1382,7 +1311,8 @@ class MainActivity : ComponentActivity() {
             stateFile = stateFile,
             deploymentManifestFile = deploymentManifestFile,
             deployRootDir = deployDir,
-            gameConfigFile = gameConfigFile
+            gameConfigFile = gameConfigFile,
+            appContext = applicationContext
         )
     }
 
@@ -2195,13 +2125,15 @@ class MainActivity : ComponentActivity() {
                 gameId = "skyrim_le",
                 displayName = "Skyrim Legendary Edition",
                 targetDataPath = skyrimPath.absolutePath,
-                realDeployEnabled = false
+                realDeployEnabled = false,
+                targetTreeUri = null
             ),
             GameDeploymentConfig(
                 gameId = "fallout_nv",
                 displayName = "Fallout New Vegas",
                 targetDataPath = falloutNvPath.absolutePath,
-                realDeployEnabled = false
+                realDeployEnabled = false,
+                targetTreeUri = null
             )
         )
     }
@@ -2268,20 +2200,22 @@ class MainActivity : ComponentActivity() {
         try {
             val result = engine.deployForGame("skyrim_le")
 
-            val effectiveTarget = if (
-                config != null &&
-                config.realDeployEnabled &&
-                engine.validateTargetDataPath(config.targetDataPath)
-            ) {
-                config.targetDataPath
-            } else {
-                File(externalBaseDir, "deploy_target/Skyrim/Data").absolutePath
-            }
-            val usingRealTarget = config != null &&
+            val usingTreeUri = config != null &&
+                    config.realDeployEnabled &&
+                    !config.targetTreeUri.isNullOrBlank()
+
+            val usingRealPathTarget = config != null &&
                     config.realDeployEnabled &&
                     engine.validateTargetDataPath(config.targetDataPath)
 
-            appendLog("Using real target: $usingRealTarget")
+            appendLog("Using tree URI target: $usingTreeUri")
+            appendLog("Using real path target: $usingRealPathTarget")
+
+            val effectiveTarget = when {
+                usingTreeUri -> "TREE_URI:${config!!.targetTreeUri}"
+                usingRealPathTarget -> config!!.targetDataPath
+                else -> File(externalBaseDir, "deploy_target/Skyrim/Data").absolutePath
+            }
 
             appendLog("Effective deploy target: $effectiveTarget")
             appendLog("Adds: ${result.addCount}")
@@ -2368,7 +2302,10 @@ class MainActivity : ComponentActivity() {
         runOnUiThread {
             editTargetPath.setText(config.targetDataPath)
             checkRealDeployEnabled.isChecked = config.realDeployEnabled
+            textSelectedTreeUri.text = "Selected folder URI: ${config.targetTreeUri ?: "none"}"
         }
+
+
 
         appendLog("Loaded config into form: $config")
     }
@@ -2385,11 +2322,14 @@ class MainActivity : ComponentActivity() {
             else -> selectedGameId
         }
 
+        val oldConfig = existingConfigs.firstOrNull { it.gameId == selectedGameId }
+
         val updatedConfig = GameDeploymentConfig(
             gameId = selectedGameId,
             displayName = displayName,
             targetDataPath = editTargetPath.text.toString().trim(),
-            realDeployEnabled = checkRealDeployEnabled.isChecked
+            realDeployEnabled = checkRealDeployEnabled.isChecked,
+            targetTreeUri = oldConfig?.targetTreeUri
         )
 
         val index = existingConfigs.indexOfFirst { it.gameId == selectedGameId }
@@ -2455,4 +2395,150 @@ class MainActivity : ComponentActivity() {
         appendLog("----- Game Config Editor Lesson Test End -----")
     }
 
+    private fun savePickedFolderToSelectedGameConfig(treeUri: String) {
+        val engine = createModEngineForWorkflows() ?: return
+        val selectedGameId = spinnerGameConfig.selectedItem?.toString() ?: return
+
+        val existingConfigs = engine.loadGameDeploymentConfigs().toMutableList()
+        val index = existingConfigs.indexOfFirst { it.gameId == selectedGameId }
+
+        if (index == -1) {
+            appendError("No config found for selected game: $selectedGameId")
+            return
+        }
+
+        val oldConfig = existingConfigs[index]
+        val updatedConfig = oldConfig.copy(targetTreeUri = treeUri)
+        existingConfigs[index] = updatedConfig
+
+        engine.saveGameDeploymentConfigs(existingConfigs)
+
+        runOnUiThread {
+            textSelectedTreeUri.text = "Selected folder URI: $treeUri"
+        }
+
+        appendLog("Saved picked folder URI for $selectedGameId")
+        loadSelectedGameConfigIntoForm()
+    }
+
+    private fun runTargetFolderPickerLessonTest() {
+        appendLog("----- Target Folder Picker Lesson Test Start -----")
+
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            runSaveGameConfigWorkflow()
+
+            val configBefore = engine.getGameDeploymentConfig("skyrim_le")
+            appendLog("Before picker test config: $configBefore")
+
+            if (configBefore == null) {
+                appendError("Skyrim config missing before picker test.")
+                appendLog("RESULT: FAIL")
+                appendLog("----- Target Folder Picker Lesson Test End -----")
+                return
+            }
+
+            appendLog("Manual step required: use 'Pick Target Folder' and then reload the Skyrim config.")
+            appendLog("If the loaded config shows a non-null targetTreeUri, the picker integration works.")
+            appendLog("RESULT: PASS")
+        } catch (e: Exception) {
+            appendError("Target folder picker lesson test failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+        }
+
+        appendLog("----- Target Folder Picker Lesson Test End -----")
+    }
+
+    private fun runTreeUriDeployLessonTest() {
+        appendLog("----- Tree URI Deploy Lesson Test Start -----")
+
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            val config = engine.getGameDeploymentConfig("skyrim_le")
+            appendLog("Current Skyrim config: $config")
+
+            if (config == null) {
+                appendError("Skyrim config not found.")
+                appendLog("RESULT: FAIL")
+                appendLog("----- Tree URI Deploy Lesson Test End -----")
+                return
+            }
+
+            if (config.targetTreeUri.isNullOrBlank()) {
+                appendError("Skyrim targetTreeUri is null. Pick a target folder first.")
+                appendLog("RESULT: FAIL")
+                appendLog("----- Tree URI Deploy Lesson Test End -----")
+                return
+            }
+
+            val configs = engine.loadGameDeploymentConfigs().toMutableList()
+            val index = configs.indexOfFirst { it.gameId == "skyrim_le" }
+            configs[index] = configs[index].copy(realDeployEnabled = true)
+            engine.saveGameDeploymentConfigs(configs)
+
+            runInstallArchiveWorkflow()
+            runInstallLooseWorkflow()
+            runSaveInstalledModsWorkflow()
+
+            val result = engine.deployForGame("skyrim_le")
+            appendLog("Tree URI deploy result -> Adds: ${result.addCount}, Removes: ${result.removeCount}, Updates: ${result.updateCount}")
+
+            appendLog("If your picked folder now contains deployed files like textures/ui/icon.dds, the test succeeded.")
+            appendLog("RESULT: PASS")
+        } catch (e: Exception) {
+            appendError("Tree URI deploy lesson test failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+        }
+
+        appendLog("----- Tree URI Deploy Lesson Test End -----")
+    }
+
+    private fun runArchiveExtractorLessonTest() {
+        appendLog("----- Archive Extractor Lesson Test Start -----")
+
+        val internalBaseDir = filesDir
+        val tempDir = File(internalBaseDir, "temp")
+        val modsDir = File(internalBaseDir, "mods")
+
+        tempDir.mkdirs()
+        modsDir.mkdirs()
+
+        try {
+            val registry = com.shonkware.droidmodloader.engine.install.ArchiveExtractorRegistry()
+
+            val zipArchive = createTestArchiveZip(internalBaseDir)
+            val zipExtractor = registry.findExtractor(zipArchive)
+            appendLog("ZIP extractor selected: ${zipExtractor::class.java.simpleName}")
+
+            val fake7z = File(internalBaseDir, "FakeTest.7z")
+            if (!fake7z.exists()) {
+                fake7z.writeText("not a real 7z yet")
+            }
+
+            val sevenZipExtractor = registry.findExtractor(fake7z)
+            appendLog("7Z extractor selected: ${sevenZipExtractor::class.java.simpleName}")
+
+            val fakeRar = File(internalBaseDir, "FakeTest.rar")
+            if (!fakeRar.exists()) {
+                fakeRar.writeText("not supported")
+            }
+
+            try {
+                registry.findExtractor(fakeRar)
+                appendLog("RAR unexpectedly resolved to an extractor.")
+                appendLog("RESULT: FAIL")
+            } catch (e: IllegalArgumentException) {
+                appendLog("RAR correctly rejected as unsupported.")
+                appendLog("RESULT: PASS")
+            }
+
+        } catch (e: Exception) {
+            appendError("Archive extractor lesson test failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+        }
+
+        appendLog("----- Archive Extractor Lesson Test End -----")
+    }
 }

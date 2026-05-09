@@ -5,7 +5,7 @@ import com.shonkware.droidmodloader.engine.build.DiffEngine
 import com.shonkware.droidmodloader.engine.build.FileChange
 import com.shonkware.droidmodloader.engine.conflict.ConflictResolver
 import com.shonkware.droidmodloader.engine.data.ModStateRepository
-import com.shonkware.droidmodloader.engine.install.ModExtractor
+import com.shonkware.droidmodloader.engine.install.ModInstaller
 import com.shonkware.droidmodloader.engine.io.FileScanner
 import com.shonkware.droidmodloader.engine.data.InstalledModRecordRepository
 import com.shonkware.droidmodloader.engine.model.InstalledModRecord
@@ -18,10 +18,12 @@ import com.shonkware.droidmodloader.engine.rules.DeployFileClassifier
 import com.shonkware.droidmodloader.engine.data.DeploymentManifestRepository
 import com.shonkware.droidmodloader.engine.deploy.DeploymentManager
 import com.shonkware.droidmodloader.engine.deploy.DeploymentResult
-import com.shonkware.droidmodloader.engine.model.DeploymentRecord
 import com.shonkware.droidmodloader.engine.data.GameDeploymentConfigRepository
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
 import java.io.File
+import android.content.Context
+import android.net.Uri
+import com.shonkware.droidmodloader.engine.deploy.TreeUriDeploymentManager
 
 data class UninstallResult(
     val removed: Boolean,
@@ -32,6 +34,7 @@ data class UninstallResult(
 )
 
 class ModEngine(
+    private val appContext: Context,
     private val tempDir: File,
     private val modsDir: File,
     private val stagingDir: File,
@@ -41,7 +44,7 @@ class ModEngine(
     private val gameConfigFile: File
 ) {
 
-    private val extractor = ModExtractor(tempDir, modsDir)
+    private val modInstaller = ModInstaller(tempDir, modsDir)
     private val resolver = ConflictResolver()
     private val stagingManager = StagingManager(stagingDir)
     private val stateRepository = ModStateRepository(stateFile)
@@ -52,7 +55,7 @@ class ModEngine(
     private val gameDeploymentConfigRepository = GameDeploymentConfigRepository(gameConfigFile)
 
     fun installArchive(archive: File, priority: Int, enabled: Boolean = true): Mod {
-        val extractedDir = extractor.extractArchive(archive)
+        val extractedDir = modInstaller.installArchive(archive)
         return buildModFromInstalledFolder(extractedDir, priority, enabled)
     }
 
@@ -315,7 +318,7 @@ class ModEngine(
         priority: Int,
         enabled: Boolean = true,
         sourceType: String = "imported_zip"): Mod {
-        val extractedDir = extractor.extractArchive(archive)
+        val extractedDir = modInstaller.installArchive(archive)
         writeInstalledModRecord(
             modDir = extractedDir,
             sourceType = sourceType,
@@ -414,16 +417,6 @@ class ModEngine(
     fun deployForGame(gameId: String): DeploymentResult {
         val config = getGameDeploymentConfig(gameId)
 
-        val effectiveDeployRoot = if (
-            config != null &&
-            config.realDeployEnabled &&
-            validateTargetDataPath(config.targetDataPath)
-        ) {
-            File(config.targetDataPath)
-        } else {
-            deployRootDir
-        }
-
         val effectiveManifestFile = if (config != null) {
             File(deploymentManifestFile.parentFile, "deployment_manifest_${config.gameId}.json")
         } else {
@@ -431,14 +424,38 @@ class ModEngine(
         }
 
         val effectiveManifestRepository = DeploymentManifestRepository(effectiveManifestFile)
-        val effectiveDeploymentManager = DeploymentManager(effectiveDeployRoot)
-
         val oldManifest = effectiveManifestRepository.load()
         val newWinningRecords = getCurrentWinningRecords()
 
-        val (newManifest, result) = effectiveDeploymentManager.deploy(oldManifest, newWinningRecords)
-        effectiveManifestRepository.save(newManifest)
+        val usingTreeUri =
+            config != null &&
+                    config.realDeployEnabled &&
+                    !config.targetTreeUri.isNullOrBlank()
 
+        val (newManifest, result) = if (usingTreeUri) {
+            val treeUri = Uri.parse(config!!.targetTreeUri)
+            val treeDeploymentManager = TreeUriDeploymentManager(
+                context = appContext,
+                contentResolver = appContext.contentResolver,
+                treeUri = treeUri
+            )
+            treeDeploymentManager.deploy(oldManifest, newWinningRecords)
+        } else {
+            val effectiveDeployRoot = if (
+                config != null &&
+                config.realDeployEnabled &&
+                validateTargetDataPath(config.targetDataPath)
+            ) {
+                File(config.targetDataPath)
+            } else {
+                deployRootDir
+            }
+
+            val effectiveDeploymentManager = DeploymentManager(effectiveDeployRoot)
+            effectiveDeploymentManager.deploy(oldManifest, newWinningRecords)
+        }
+
+        effectiveManifestRepository.save(newManifest)
         return result
     }
 }
