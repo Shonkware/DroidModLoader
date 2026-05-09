@@ -72,6 +72,34 @@
                 android:paddingBottom="12dp" />
 
             <TextView
+                android:id="@+id/pluginsTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Plugins"
+                android:textSize="18sp"
+                android:paddingTop="12dp"
+                android:paddingBottom="8dp" />
+
+            <Button
+                android:id="@+id/buttonRefreshPluginsPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Refresh Plugins Panel" />
+
+            <Button
+                android:id="@+id/buttonSaveDiscoveredPlugins"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Discover And Save Plugins" />
+
+            <LinearLayout
+                android:id="@+id/pluginsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="12dp" />
+
+            <TextView
                 android:id="@+id/workflowTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -85,6 +113,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="List Installed Mods" />
+
+            <Button
+                android:id="@+id/buttonExportPluginOutputs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Export Plugin Outputs" />
 
             <Button
                 android:id="@+id/buttonImportZip"
@@ -326,6 +360,24 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Run Archive Extractor Test" />
+
+                <Button
+                    android:id="@+id/buttonPluginDiscoveryTest"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Run Plugin Discovery Test" />
+
+                <Button
+                    android:id="@+id/buttonPluginEditTest"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Run Plugin Edit Test" />
+
+                <Button
+                    android:id="@+id/buttonPluginOutputTest"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Run Plugin Output Test" />
 
             </LinearLayout>
 

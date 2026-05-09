@@ -32,6 +32,8 @@ import android.widget.EditText
 import android.widget.Spinner
 import android.content.Intent
 import androidx.documentfile.provider.DocumentFile
+import com.shonkware.droidmodloader.engine.model.PluginEntry
+
 
 class MainActivity : ComponentActivity() {
 
@@ -62,6 +64,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var summaryTextView: TextView
     private lateinit var lessonToolsContainer: LinearLayout
     private var lessonToolsVisible = true
+
+    private lateinit var pluginsContainer: LinearLayout
 
     private val pickTargetFolderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -98,6 +102,10 @@ class MainActivity : ComponentActivity() {
         checkRealDeployEnabled = findViewById(R.id.checkRealDeployEnabled)
 
         textSelectedTreeUri = findViewById(R.id.textSelectedTreeUri)
+        pluginsContainer = findViewById(R.id.pluginsContainer)
+
+        val buttonRefreshPluginsPanel: Button = findViewById(R.id.buttonRefreshPluginsPanel)
+        val buttonSaveDiscoveredPlugins: Button = findViewById(R.id.buttonSaveDiscoveredPlugins)
 
         val buttonTargetFolderPickerTest: Button = findViewById(R.id.buttonTargetFolderPickerTest)
 
@@ -141,6 +149,21 @@ class MainActivity : ComponentActivity() {
         val buttonTreeUriDeployTest: Button = findViewById(R.id.buttonTreeUriDeployTest)
 
         val buttonArchiveExtractorTest: Button = findViewById(R.id.buttonArchiveExtractorTest)
+
+        val buttonPluginDiscoveryTest: Button = findViewById(R.id.buttonPluginDiscoveryTest)
+
+        val buttonPluginEditTest: Button = findViewById(R.id.buttonPluginEditTest)
+
+        val buttonExportPluginOutputs: Button = findViewById(R.id.buttonExportPluginOutputs)
+        val buttonPluginOutputTest: Button = findViewById(R.id.buttonPluginOutputTest)
+
+        buttonPluginEditTest.setOnClickListener {
+            runInBackground { runPluginEditLessonTest() }
+        }
+
+        buttonPluginDiscoveryTest.setOnClickListener {
+            runInBackground { runPluginDiscoveryLessonTest() }
+        }
 
         buttonArchiveExtractorTest.setOnClickListener {
             runInBackground { runArchiveExtractorLessonTest() }
@@ -290,6 +313,22 @@ class MainActivity : ComponentActivity() {
 
         buttonTargetFolderPickerTest.setOnClickListener {
             runInBackground { runTargetFolderPickerLessonTest() }
+        }
+
+        buttonRefreshPluginsPanel.setOnClickListener {
+            runInBackground { refreshPluginsPanel() }
+        }
+
+        buttonSaveDiscoveredPlugins.setOnClickListener {
+            runInBackground { runSaveDiscoveredPluginsWorkflow() }
+        }
+
+        buttonExportPluginOutputs.setOnClickListener {
+            runInBackground { runExportPluginOutputsWorkflow() }
+        }
+
+        buttonPluginOutputTest.setOnClickListener {
+            runInBackground { runPluginOutputLessonTest() }
         }
 
         runInBackground { refreshGameConfigSpinner() }
@@ -1137,6 +1176,9 @@ class MainActivity : ComponentActivity() {
         val deploymentManifestFile = File(externalBaseDir, "state/deployment_manifest.json")
         val deployRootDir = File(externalBaseDir, "deploy_target/Skyrim/Data")
         val gameConfigFile = File(externalBaseDir, "state/game_deployment_configs.json")
+        val pluginListFile = File(externalBaseDir, "state/plugins.json")
+        val pluginsTxtFile = File(externalBaseDir, "state/plugins.txt")
+        val loadorderTxtFile = File(externalBaseDir, "state/loadorder.txt")
 
         fun ensureDir(dir: File) {
             if (!dir.exists() && !dir.mkdirs()) {
@@ -1180,7 +1222,10 @@ class MainActivity : ComponentActivity() {
                 deploymentManifestFile = deploymentManifestFile,
                 deployRootDir = deployRootDir,
                 gameConfigFile = gameConfigFile,
-                appContext = applicationContext
+                appContext = applicationContext,
+                pluginListFile = pluginListFile,
+                pluginsTxtFile = pluginsTxtFile,
+                loadorderTxtFile = loadorderTxtFile
             )
 
             val archive = createTestArchiveZip(archiveDir)
@@ -1297,6 +1342,10 @@ class MainActivity : ComponentActivity() {
         val deployDir = File(externalBaseDir, "deploy_target/Skyrim/Data")
         val deploymentManifestFile = File(externalBaseDir, "state/deployment_manifest.json")
         val gameConfigFile = File(externalBaseDir, "state/game_deployment_configs.json")
+        val pluginListFile = File(externalBaseDir, "state/plugins.json")
+        val pluginsTxtFile = File(externalBaseDir, "state/plugins.txt")
+        val loadorderTxtFile = File(externalBaseDir, "state/loadorder.txt")
+
 
         tempDir.mkdirs()
         modsDir.mkdirs()
@@ -1305,6 +1354,7 @@ class MainActivity : ComponentActivity() {
         deployDir.mkdirs()
 
         return ModEngine(
+            appContext = applicationContext,
             tempDir = tempDir,
             modsDir = modsDir,
             stagingDir = stagingDir,
@@ -1312,7 +1362,9 @@ class MainActivity : ComponentActivity() {
             deploymentManifestFile = deploymentManifestFile,
             deployRootDir = deployDir,
             gameConfigFile = gameConfigFile,
-            appContext = applicationContext
+            pluginListFile = pluginListFile,
+            pluginsTxtFile = pluginsTxtFile,
+            loadorderTxtFile = loadorderTxtFile
         )
     }
 
@@ -1881,6 +1933,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshDashboard() {
         refreshSummaryPanel()
         refreshInstalledModsPanel()
+        refreshPluginsPanel()
         appendLog("Dashboard refreshed.")
     }
 
@@ -2540,5 +2593,335 @@ class MainActivity : ComponentActivity() {
         }
 
         appendLog("----- Archive Extractor Lesson Test End -----")
+    }
+
+    private fun createPluginRow(plugin: PluginEntry): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, 20)
+        }
+
+        val infoText = TextView(this).apply {
+            this.text = "Priority ${plugin.priority} | ${plugin.pluginName} | ${plugin.pluginType} | " +
+                    "${if (plugin.enabled) "ENABLED" else "DISABLED"} | From: ${plugin.sourceModName}"
+        }
+
+        val buttonRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+
+        val toggleButton = Button(this).apply {
+            text = if (plugin.enabled) "Disable" else "Enable"
+            setOnClickListener {
+                runInBackground { togglePluginEnabled(plugin.pluginName) }
+            }
+        }
+
+        val upButton = Button(this).apply {
+            text = "Up"
+            setOnClickListener {
+                runInBackground { movePluginUp(plugin.pluginName) }
+            }
+        }
+
+        val downButton = Button(this).apply {
+            text = "Down"
+            setOnClickListener {
+                runInBackground { movePluginDown(plugin.pluginName) }
+            }
+        }
+
+        buttonRow.addView(toggleButton)
+        buttonRow.addView(upButton)
+        buttonRow.addView(downButton)
+
+        row.addView(infoText)
+        row.addView(buttonRow)
+
+        return row
+    }
+
+    private fun refreshPluginsPanel() {
+        val engine = createModEngineForWorkflows() ?: return
+        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }
+
+        runOnUiThread {
+            pluginsContainer.removeAllViews()
+
+            if (plugins.isEmpty()) {
+                val emptyText = TextView(this).apply {
+                    text = "No plugins found."
+                }
+                pluginsContainer.addView(emptyText)
+                return@runOnUiThread
+            }
+
+            for (plugin in plugins) {
+                pluginsContainer.addView(createPluginRow(plugin))
+            }
+        }
+    }
+
+    private fun runSaveDiscoveredPluginsWorkflow() {
+        appendLog("----- Save Discovered Plugins Workflow Start -----")
+
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            val plugins = engine.saveDiscoveredPlugins()
+            appendLog("Saved discovered plugin count: ${plugins.size}")
+
+            for (plugin in plugins) {
+                appendLog("PLUGIN: $plugin")
+            }
+
+            appendLog("RESULT: PASS")
+        } catch (e: Exception) {
+            appendError("Save discovered plugins workflow failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+        }
+
+        refreshPluginsPanel()
+        appendLog("----- Save Discovered Plugins Workflow End -----")
+        appendLog("Discovered plugins are ready for export.")
+    }
+
+    private fun runPluginDiscoveryLessonTest() {
+        appendLog("----- Plugin Discovery Lesson Test Start -----")
+
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            runInstallArchiveWorkflow()
+            runInstallLooseWorkflow()
+            runSaveInstalledModsWorkflow()
+
+            val discovered = engine.discoverPluginsFromCurrentMods()
+            appendLog("Discovered plugin count: ${discovered.size}")
+            for (plugin in discovered) {
+                appendLog("DISCOVERED PLUGIN: $plugin")
+            }
+
+            val saved = engine.saveDiscoveredPlugins()
+            appendLog("Saved plugin count: ${saved.size}")
+
+            val loaded = engine.loadPlugins()
+            appendLog("Loaded plugin count: ${loaded.size}")
+
+            val hasSkyUi = loaded.any { it.pluginName.equals("SkyUI.esp", ignoreCase = true) }
+
+            if (loaded.isNotEmpty() && hasSkyUi) {
+                appendLog("Plugin discovery succeeded and includes SkyUI.esp")
+                appendLog("RESULT: PASS")
+            } else {
+                appendLog("Plugin discovery failed or expected plugin missing.")
+                appendLog("RESULT: FAIL")
+            }
+        } catch (e: Exception) {
+            appendError("Plugin discovery lesson test failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+        }
+
+        refreshPluginsPanel()
+        appendLog("----- Plugin Discovery Lesson Test End -----")
+    }
+
+    private fun togglePluginEnabled(pluginName: String) {
+        val engine = createModEngineForWorkflows() ?: return
+        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
+
+        val index = plugins.indexOfFirst { it.pluginName == pluginName }
+        if (index == -1) {
+            appendError("Could not find plugin: $pluginName")
+            return
+        }
+
+        plugins[index] = plugins[index].copy(enabled = !plugins[index].enabled)
+        val normalized = engine.normalizePluginPriorities(plugins)
+        engine.saveCurrentPlugins(normalized)
+
+        appendLog("Toggled plugin enabled state for $pluginName")
+        refreshPluginsPanel()
+    }
+
+    private fun movePluginUp(pluginName: String) {
+        val engine = createModEngineForWorkflows() ?: return
+        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
+
+        val index = plugins.indexOfFirst { it.pluginName == pluginName }
+        if (index <= 0) {
+            appendLog("Cannot move plugin up: $pluginName")
+            return
+        }
+
+        val temp = plugins[index - 1]
+        plugins[index - 1] = plugins[index]
+        plugins[index] = temp
+
+        val normalized = engine.normalizePluginPriorities(plugins)
+        engine.saveCurrentPlugins(normalized)
+
+        appendLog("Moved plugin up: $pluginName")
+        refreshPluginsPanel()
+    }
+
+    private fun movePluginDown(pluginName: String) {
+        val engine = createModEngineForWorkflows() ?: return
+        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
+
+        val index = plugins.indexOfFirst { it.pluginName == pluginName }
+        if (index == -1 || index >= plugins.lastIndex) {
+            appendLog("Cannot move plugin down: $pluginName")
+            return
+        }
+
+        val temp = plugins[index + 1]
+        plugins[index + 1] = plugins[index]
+        plugins[index] = temp
+
+        val normalized = engine.normalizePluginPriorities(plugins)
+        engine.saveCurrentPlugins(normalized)
+
+        appendLog("Moved plugin down: $pluginName")
+        refreshPluginsPanel()
+    }
+
+    private fun runPluginEditLessonTest() {
+        appendLog("----- Plugin Edit Lesson Test Start -----")
+
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            runInstallArchiveWorkflow()
+            runSaveInstalledModsWorkflow()
+            runSaveDiscoveredPluginsWorkflow()
+
+            val before = engine.getCurrentPlugins().sortedBy { it.priority }
+            appendLog("Plugin count before edit: ${before.size}")
+            for (plugin in before) {
+                appendLog("BEFORE PLUGIN: $plugin")
+            }
+
+            val skyUiPlugin = before.firstOrNull { it.pluginName.equals("SkyUI.esp", ignoreCase = true) }
+            if (skyUiPlugin == null) {
+                appendError("SkyUI.esp not found in plugin list.")
+                appendLog("RESULT: FAIL")
+                appendLog("----- Plugin Edit Lesson Test End -----")
+                return
+            }
+
+            val edited = before.map {
+                if (it.pluginName.equals("SkyUI.esp", ignoreCase = true)) {
+                    it.copy(enabled = false)
+                } else {
+                    it
+                }
+            }
+
+            val normalized = engine.normalizePluginPriorities(edited)
+            engine.saveCurrentPlugins(normalized)
+
+            val after = engine.loadPlugins().sortedBy { it.priority }
+            appendLog("Plugin count after edit: ${after.size}")
+            for (plugin in after) {
+                appendLog("AFTER PLUGIN: $plugin")
+            }
+
+            val updatedSkyUi = after.firstOrNull { it.pluginName.equals("SkyUI.esp", ignoreCase = true) }
+
+            if (updatedSkyUi != null && !updatedSkyUi.enabled) {
+                appendLog("Plugin edit persisted correctly.")
+                appendLog("RESULT: PASS")
+            } else {
+                appendLog("Plugin edit persistence failed.")
+                appendLog("RESULT: FAIL")
+            }
+        } catch (e: Exception) {
+            appendError("Plugin edit lesson test failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+        }
+
+        refreshPluginsPanel()
+        appendLog("----- Plugin Edit Lesson Test End -----")
+    }
+
+    private fun runExportPluginOutputsWorkflow() {
+        appendLog("----- Export Plugin Outputs Workflow Start -----")
+
+        val engine = createModEngineForWorkflows() ?: return
+        val externalBaseDir = getExternalFilesDir(null)
+        if (externalBaseDir == null) {
+            appendError("External files directory is null")
+            appendLog("RESULT: FAIL")
+            appendLog("----- Export Plugin Outputs Workflow End -----")
+            return
+        }
+
+        val pluginsTxtFile = File(externalBaseDir, "state/plugins.txt")
+        val loadorderTxtFile = File(externalBaseDir, "state/loadorder.txt")
+
+        try {
+            val (pluginsTxt, loadorderTxt) = engine.exportCurrentPluginOutputs()
+
+            appendLog("plugins.txt path: ${pluginsTxtFile.absolutePath}")
+            appendLog("loadorder.txt path: ${loadorderTxtFile.absolutePath}")
+            appendLog("plugins.txt exists: ${pluginsTxtFile.exists()}")
+            appendLog("loadorder.txt exists: ${loadorderTxtFile.exists()}")
+
+            appendLog("plugins.txt contents:")
+            appendLog(pluginsTxt.ifBlank { "(empty)" })
+
+            appendLog("loadorder.txt contents:")
+            appendLog(loadorderTxt.ifBlank { "(empty)" })
+
+            appendLog("RESULT: PASS")
+        } catch (e: Exception) {
+            appendError("Export plugin outputs workflow failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+        }
+
+        appendLog("----- Export Plugin Outputs Workflow End -----")
+    }
+
+    private fun runPluginOutputLessonTest() {
+        appendLog("----- Plugin Output Lesson Test Start -----")
+
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            runInstallArchiveWorkflow()
+            runSaveInstalledModsWorkflow()
+            runSaveDiscoveredPluginsWorkflow()
+
+            val pluginsBefore = engine.getCurrentPlugins().sortedBy { it.priority }
+            appendLog("Plugin count before export: ${pluginsBefore.size}")
+            for (plugin in pluginsBefore) {
+                appendLog("PLUGIN BEFORE EXPORT: $plugin")
+            }
+
+            val (pluginsTxt, loadorderTxt) = engine.exportCurrentPluginOutputs()
+
+            appendLog("Generated plugins.txt:")
+            appendLog(pluginsTxt.ifBlank { "(empty)" })
+
+            appendLog("Generated loadorder.txt:")
+            appendLog(loadorderTxt.ifBlank { "(empty)" })
+
+            val hasSkyUiInPlugins = pluginsTxt.lines().any { it.equals("SkyUI.esp", ignoreCase = true) }
+            val hasSkyUiInLoadorder = loadorderTxt.lines().any { it.equals("SkyUI.esp", ignoreCase = true) }
+
+            if (hasSkyUiInPlugins && hasSkyUiInLoadorder) {
+                appendLog("Plugin output export succeeded.")
+                appendLog("RESULT: PASS")
+            } else {
+                appendLog("Plugin output export failed or expected plugin missing.")
+                appendLog("RESULT: FAIL")
+            }
+        } catch (e: Exception) {
+            appendError("Plugin output lesson test failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+        }
+
+        appendLog("----- Plugin Output Lesson Test End -----")
     }
 }

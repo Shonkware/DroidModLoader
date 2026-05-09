@@ -24,6 +24,10 @@ import java.io.File
 import android.content.Context
 import android.net.Uri
 import com.shonkware.droidmodloader.engine.deploy.TreeUriDeploymentManager
+import com.shonkware.droidmodloader.engine.data.PluginListRepository
+import com.shonkware.droidmodloader.engine.model.PluginEntry
+import com.shonkware.droidmodloader.engine.plugins.PluginDiscovery
+import com.shonkware.droidmodloader.engine.data.PluginOutputRepository
 
 data class UninstallResult(
     val removed: Boolean,
@@ -41,7 +45,10 @@ class ModEngine(
     private val stateFile: File,
     private val deploymentManifestFile: File,
     private val deployRootDir: File,
-    private val gameConfigFile: File
+    private val gameConfigFile: File,
+    private val pluginListFile: File,
+    private val pluginsTxtFile: File,
+    private val loadorderTxtFile: File
 ) {
 
     private val modInstaller = ModInstaller(tempDir, modsDir)
@@ -53,6 +60,12 @@ class ModEngine(
     private val deploymentManifestRepository = DeploymentManifestRepository(deploymentManifestFile)
     private val deploymentManager = DeploymentManager(deployRootDir)
     private val gameDeploymentConfigRepository = GameDeploymentConfigRepository(gameConfigFile)
+    private val pluginListRepository = PluginListRepository(pluginListFile)
+    private val pluginDiscovery = PluginDiscovery()
+    private val pluginOutputRepository = PluginOutputRepository(
+        pluginsTxtFile = pluginsTxtFile,
+        loadorderTxtFile = loadorderTxtFile
+    )
 
     fun installArchive(archive: File, priority: Int, enabled: Boolean = true): Mod {
         val extractedDir = modInstaller.installArchive(archive)
@@ -457,5 +470,79 @@ class ModEngine(
 
         effectiveManifestRepository.save(newManifest)
         return result
+    }
+
+    fun discoverPluginsFromCurrentMods(): List<PluginEntry> {
+        return pluginDiscovery.discoverPlugins(getCurrentMods())
+    }
+
+    fun saveDiscoveredPlugins(): List<PluginEntry> {
+        val plugins = discoverPluginsFromCurrentMods()
+        pluginListRepository.save(plugins)
+        return plugins
+    }
+
+    fun loadPlugins(): List<PluginEntry> {
+        return pluginListRepository.load()
+    }
+
+    fun getCurrentPlugins(): List<PluginEntry> {
+        val saved = loadPlugins().sortedBy { it.priority }
+        return if (saved.isNotEmpty()) {
+            saved
+        } else {
+            discoverPluginsFromCurrentMods()
+        }
+    }
+
+    fun clearPluginList() {
+        pluginListRepository.clear()
+    }
+
+    fun savePlugins(plugins: List<PluginEntry>) {
+        pluginListRepository.save(plugins.sortedBy { it.priority })
+    }
+
+    fun saveCurrentPlugins(plugins: List<PluginEntry>) {
+        savePlugins(plugins)
+    }
+
+    fun normalizePluginPriorities(plugins: List<PluginEntry>): List<PluginEntry> {
+        return plugins.sortedBy { it.priority }.mapIndexed { index, plugin ->
+            plugin.copy(priority = (index + 1) * 10)
+        }
+    }
+
+    fun buildPluginsTxt(plugins: List<PluginEntry>): String {
+        return plugins
+            .sortedBy { it.priority }
+            .filter { it.enabled }
+            .joinToString(separator = "\n") { it.pluginName }
+    }
+
+    fun buildLoadorderTxt(plugins: List<PluginEntry>): String {
+        return plugins
+            .sortedBy { it.priority }
+            .joinToString(separator = "\n") { it.pluginName }
+    }
+
+    fun exportCurrentPluginOutputs(): Pair<String, String> {
+        val plugins = getCurrentPlugins().sortedBy { it.priority }
+
+        val pluginsTxt = buildPluginsTxt(plugins)
+        val loadorderTxt = buildLoadorderTxt(plugins)
+
+        pluginOutputRepository.savePluginsTxt(pluginsTxt)
+        pluginOutputRepository.saveLoadorderTxt(loadorderTxt)
+
+        return Pair(pluginsTxt, loadorderTxt)
+    }
+
+    fun readExportedPluginsTxt(): String {
+        return pluginOutputRepository.readPluginsTxt()
+    }
+
+    fun readExportedLoadorderTxt(): String {
+        return pluginOutputRepository.readLoadorderTxt()
     }
 }
