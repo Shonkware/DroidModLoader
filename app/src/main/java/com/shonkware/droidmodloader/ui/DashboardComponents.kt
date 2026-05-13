@@ -18,6 +18,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -312,6 +314,71 @@ fun DeveloperToolsCard() {
         ) {
             Text("Developer Tools", fontWeight = FontWeight.Bold)
             Text("Keep your old lesson/test actions here later if needed.")
+        }
+    }
+}
+@Composable
+fun SetupScreen(
+    state: DashboardUiState,
+    actions: DashboardActions
+) {
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("First Setup", fontWeight = FontWeight.Bold)
+                    Text("Create your first game profile before using the mod manager.")
+
+                    OutlinedTextField(
+                        value = state.profileNameText,
+                        onValueChange = actions.onProfileNameChanged,
+                        label = { Text("Profile Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("skyrim_le", "fallout_nv").forEach { gameId ->
+                            FilterChip(
+                                selected = state.setupGameId == gameId,
+                                onClick = { actions.onSetupGameChanged(gameId) },
+                                label = { Text(gameId) }
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = state.setupTargetPathText,
+                        onValueChange = actions.onSetupTargetPathChanged,
+                        label = { Text("Target Data Path") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = state.setupRealDeployEnabled,
+                            onCheckedChange = actions.onSetupRealDeployChanged
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Write to Real Target Folder")
+                    }
+
+                    Button(
+                        onClick = actions.onCompleteSetup,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Create Profile")
+                    }
+                }
+            }
         }
     }
 }

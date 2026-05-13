@@ -19,6 +19,9 @@ import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.ui.DashboardActions
 import com.shonkware.droidmodloader.ui.DashboardUiState
 import com.shonkware.droidmodloader.ui.DroidModLoaderScreen
+import com.shonkware.droidmodloader.engine.profile.ProfileRepository
+import com.shonkware.droidmodloader.engine.model.GameProfile
+import com.shonkware.droidmodloader.engine.model.AppSetupState
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -26,6 +29,14 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "DroidModLoader"
     }
+
+    private var setupComplete by mutableStateOf(false)
+    private var activeProfileId by mutableStateOf<String?>(null)
+    private var profileNameText by mutableStateOf("Default")
+    private var setupGameId by mutableStateOf("skyrim_le")
+    private var setupGameDisplayName by mutableStateOf("Skyrim Legendary Edition")
+    private var setupTargetPathText by mutableStateOf("")
+    private var setupRealDeployEnabled by mutableStateOf(false)
 
     private var developerTapCount = 0
     private var developerModeEnabled by mutableStateOf(false)
@@ -106,7 +117,13 @@ class MainActivity : ComponentActivity() {
             targetPathText = targetPathText,
             selectedTreeUriText = selectedTreeUriText,
             realDeployEnabled = realDeployEnabledState,
-            logText = logText
+            logText = logText,
+            setupComplete = setupComplete,
+            profileNameText = profileNameText,
+            setupGameId = setupGameId,
+            setupTargetPathText = setupTargetPathText,
+            setupRealDeployEnabled = setupRealDeployEnabled
+
         )
     }
 
@@ -168,12 +185,28 @@ class MainActivity : ComponentActivity() {
             },
             onShareLogs = {
                 shareLogs()
+            },
+            onProfileNameChanged = { profileNameText = it },
+            onSetupGameChanged = { gameId ->
+                setupGameId = gameId
+                setupGameDisplayName = when (gameId) {
+                    "skyrim_le" -> "Skyrim Legendary Edition"
+                    "fallout_nv" -> "Fallout New Vegas"
+                    else -> gameId
+                }
+            },
+            onSetupTargetPathChanged = { setupTargetPathText = it },
+            onSetupRealDeployChanged = { setupRealDeployEnabled = it },
+            onCompleteSetup = {
+                runInBackground { completeFirstSetup() }
             }
         )
+
     }
 
     private fun initializeComposeUi() {
         runInBackground {
+            loadSetupState()
             refreshGameOptions()
             loadSelectedGameConfigIntoUi()
             migratePrioritySpacingIfNeeded()
@@ -181,7 +214,6 @@ class MainActivity : ComponentActivity() {
         }
         appendLog("UI ready.")
     }
-
     private fun runInBackground(block: () -> Unit) {
         Thread {
             block()
@@ -272,7 +304,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
     private fun handleImportedArchive(uri: Uri) {
         appendLog("----- Import Archive Workflow Start -----")
 
@@ -311,10 +342,18 @@ class MainActivity : ComponentActivity() {
             )
 
             appendLog("Archive install returned successfully.")
-            val savedMods = engine.saveInstalledModsFromFolders()
+
+            val currentMods = engine.getCurrentMods()
+                .filterNot { it.id == installedMod.id }
+                .sortedBy { it.priority }
+
+            val updatedMods = currentMods + installedMod.copy(priority = currentMods.size + 1)
+
+            engine.saveCurrentMods(updatedMods)
             syncPluginsFromCurrentState(engine)
+
             appendLog("Installed imported mod: $installedMod")
-            appendLog("Saved installed mod count after import: ${savedMods.size}")
+            appendLog("Saved installed mod count after import: ${updatedMods.size}")
             appendLog("Plugins refreshed automatically.")
             appendLog("RESULT: PASS")
             updateLastOperationStatus("Import archive succeeded.")
@@ -328,13 +367,11 @@ class MainActivity : ComponentActivity() {
         refreshDashboard()
         appendLog("----- Import Archive Workflow End -----")
     }
-
     private fun normalizePriorities(mods: List<Mod>): List<Mod> {
         return mods.sortedBy { it.priority }.mapIndexed { index, mod ->
             mod.copy(priority = index + 1)
         }
     }
-
     private fun toggleModEnabled(modId: String) {
         val engine = createModEngineForWorkflows() ?: return
         val mods = engine.getCurrentMods().sortedBy { it.priority }.toMutableList()
@@ -391,7 +428,6 @@ class MainActivity : ComponentActivity() {
         syncPluginsFromCurrentState(engine)
         refreshDashboard()
     }
-
     private fun deleteInstalledMod(modId: String) {
         appendLog("----- Delete Installed Mod Workflow Start -----")
         appendLog("Requested delete for mod: $modId")
@@ -479,7 +515,6 @@ class MainActivity : ComponentActivity() {
 
         appendLog("Dashboard refreshed.")
     }
-
     private fun showDeleteConfirmDialog(mod: Mod) {
         runOnUiThread {
             AlertDialog.Builder(this)
@@ -604,7 +639,6 @@ class MainActivity : ComponentActivity() {
         updateLastOperationStatus("Plugin moved down.")
         refreshDashboard()
     }
-
     private fun buildDiagnosticSummary(): String {
         val engine = createModEngineForWorkflows()
 
@@ -887,6 +921,75 @@ class MainActivity : ComponentActivity() {
             engine.saveCurrentPlugins(normalizedPlugins)
             appendLog("Migrated plugin priorities to sequential 1-based ordering.")
         }
+    }
+
+    private fun createProfileRepository(): ProfileRepository? {
+        val externalBaseDir = getExternalFilesDir(null)
+        if (externalBaseDir == null) {
+            appendError("External files directory is null")
+            return null
+        }
+
+        val stateDir = File(externalBaseDir, "state")
+        val profilesFile = File(stateDir, "profiles.json")
+        val setupStateFile = File(stateDir, "app_setup.json")
+
+        return ProfileRepository(
+            profilesFile = profilesFile,
+            setupStateFile = setupStateFile
+        )
+    }
+
+    private fun loadSetupState() {
+        val repo = createProfileRepository() ?: return
+        val state = repo.loadSetupState()
+
+        runOnUiThread {
+            setupComplete = state.setupComplete
+            activeProfileId = state.activeProfileId
+        }
+
+        appendLog("Loaded setup state: $state")
+    }
+
+    private fun completeFirstSetup() {
+        val repo = createProfileRepository() ?: return
+
+        val profileId = "${setupGameId}_${System.currentTimeMillis()}"
+
+        val profile = GameProfile(
+            profileId = profileId,
+            profileName = profileNameText.trim().ifBlank { "Default" },
+            gameId = setupGameId,
+            gameDisplayName = setupGameDisplayName,
+            targetDataPath = setupTargetPathText.trim(),
+            targetTreeUri = null,
+            realDeployEnabled = setupRealDeployEnabled,
+            iniPresetId = null
+        )
+
+        val existingProfiles = repo.loadProfiles().toMutableList()
+        existingProfiles.add(profile)
+
+        repo.saveProfiles(existingProfiles)
+        repo.saveSetupState(
+            AppSetupState(
+                setupComplete = true,
+                activeProfileId = profileId
+            )
+        )
+
+        runOnUiThread {
+            setupComplete = true
+            activeProfileId = profileId
+            selectedGameId = profile.gameId
+            targetPathText = profile.targetDataPath
+            realDeployEnabledState = profile.realDeployEnabled
+        }
+
+        appendLog("Created first profile: $profile")
+        updateLastOperationStatus("Setup complete.")
+        refreshDashboard()
     }
 }
 

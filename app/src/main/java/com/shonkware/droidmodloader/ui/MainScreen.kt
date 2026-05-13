@@ -26,7 +26,12 @@ data class DashboardUiState(
     val targetPathText: String,
     val selectedTreeUriText: String,
     val realDeployEnabled: Boolean,
-    val logText: String
+    val logText: String,
+    val setupComplete: Boolean,
+    val profileNameText: String,
+    val setupGameId: String,
+    val setupTargetPathText: String,
+    val setupRealDeployEnabled: Boolean
 )
 
 data class DashboardActions(
@@ -46,7 +51,12 @@ data class DashboardActions(
     val onRealDeployChanged: (Boolean) -> Unit,
     val onPickTargetFolder: () -> Unit,
     val onSaveSettings: () -> Unit,
-    val onShareLogs: () -> Unit
+    val onShareLogs: () -> Unit,
+    val onProfileNameChanged: (String) -> Unit,
+    val onSetupGameChanged: (String) -> Unit,
+    val onSetupTargetPathChanged: (String) -> Unit,
+    val onSetupRealDeployChanged: (Boolean) -> Unit,
+    val onCompleteSetup: () -> Unit
 )
 
 @Composable
@@ -54,6 +64,13 @@ fun DroidModLoaderScreen(
     state: DashboardUiState,
     actions: DashboardActions
 ) {
+    if (!state.setupComplete) {
+        SetupScreen(
+            state = state,
+            actions = actions
+        )
+        return
+    }
     Scaffold { padding ->
         Column(
             modifier = Modifier
