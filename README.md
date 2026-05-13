@@ -1,18 +1,18 @@
 # DroidModLoader
 
-DroidModLoader is an Android-based mod manager for Bethesda games, designed for shared-storage game installs and Windows container environments. The project is focused on making mobile modding more organized, easier, and more scalable for users who want a practical way to build and maintain modded game setups on Android.
+DroidModLoader is an Android based mod manager for Bethesda games, designed for shared storage game installs and Windows container environments. The project is focused on making mobile modding more organized, easier, and more scalable for users who want a practical way to build and maintain modded game setups on Android.
 
-The primary development and testing target for this project is GameNative, which will be used to validate modlists, mod structure, deployment behavior, and compatibility in real-world use.
+The primary development and testing target for this project is GameNative, which will be used to validate modlists, mod structure, deployment behavior, and compatibility in real world use.
 
 ---
 
 ## Overview
 
-Modding Bethesda games on Android currently involves a lot of manual file handling, trial and error, and limited visibility into what is actually happening inside a setup. Desktop mod managers solve many of these problems on PC, but equivalent tooling for Android and container-based workflows is non-existant.
+Modding Bethesda games on Android currently involves a lot of manual file handling, trial and error, and limited visibility into what is actually happening inside a setup. Desktop mod managers solve many of these problems on PC, but equivalent tooling for Android and container based workflows is non-existant.
 
 DroidModLoader is being built to fill that gap.
 
-The goal is not just to extract archives, but to provide a structured mod management layer that helps users install mods cleanly, understand conflicts, manage profiles, and build stable foundations for long-term modded playthroughs.
+The goal is not just to extract archives, but to provide a structured mod management layer that helps users install mods cleanly, understand conflicts, manage profiles, and build stable foundations for long term modded playthroughs.
 
 ---
 
@@ -31,7 +31,7 @@ DroidModLoader is being developed around a few core goals:
 
 ## Target Games
 
-The project is designed primarily around Bethesda-style mod layouts, with support goals including:
+The project is designed primarily around Bethesda style mod layouts, with support goals including:
 
 - **Skyrim Legendary Edition**
 - **Skyrim Special Edition**
@@ -39,7 +39,7 @@ The project is designed primarily around Bethesda-style mod layouts, with suppor
 - **Fallout 4**
 - **Oblivion**
 
-While the broader long-term focus includes multiple games, early workflow design and compatibility planning are centered on the kinds of file structures and mod management patterns common to Bethesda titles.
+While the broader long term focus includes multiple games, early workflow design and compatibility planning are centered on the kinds of file structures and mod management patterns common to Bethesda titles.
 
 ---
 
@@ -50,7 +50,7 @@ A major part of DroidModLoader’s development is direct support for **GameNativ
 GameNative will serve as the main test environment for verifying that:
 
 - mod installs are structured correctly
-- shared-storage deployment works as intended
+- shared storage deployment works as intended
 - generated setups are usable in practice
 - modded game environments behave reliably enough for real testing
 
@@ -67,7 +67,7 @@ DroidModLoader is being designed to:
 - import mod archives from device storage
 - extract archives into managed mod directories
 - keep each installed mod isolated in its own folder
-- support loose-file scanning after extraction
+- support loose file scanning after extraction
 - prepare installed content for use in a shared game environment
 
 ### File Scanning and Conflict Detection
@@ -82,16 +82,16 @@ A core part of the app is visibility into files and conflicts. Planned capabilit
 
 ### Profile Management
 
-The project is intended to support profile-based modlist configurations so users can:
+The project is intended to support profile based modlist configurations so users can:
 
 - maintain separate mod setups per game
 - enable or disable mods by profile
 - experiment without rebuilding everything from scratch
 - keep cleaner separation between different playthroughs or test environments
 
-### Performance-Oriented Workflow
+### Performance Oriented Workflow
 
-DroidModLoader is being built with large mod lists in mind. Long-term performance goals include:
+DroidModLoader is being built with large mod lists in mind. Long term performance goals include:
 
 - avoiding unnecessary rescans
 - using indexing and caching where practical
@@ -103,7 +103,7 @@ DroidModLoader is being built with large mod lists in mind. Long-term performanc
 The project also aims to reduce confusion around Bethesda plugin handling by providing:
 
 - better visibility into plugin activation and ordering
-- support for plugin-related output where appropriate
+- support for plugin related output where appropriate
 - guidance around files such as `plugins.txt` and `loadorder.txt`
 - future tooling to simplify setup inside Windows container environments
 
@@ -111,23 +111,23 @@ The project also aims to reduce confusion around Bethesda plugin handling by pro
 
 ## Beta Companion Guide
 
-When DroidModLoader reaches beta, the project will also introduce a **Viva New Vegas-style modding guide for Skyrim Legendary Edition**.
+When DroidModLoader reaches beta, the project will also introduce a **Viva New Vegas style modding guide for Skyrim Legendary Edition**.
 
-This guide will focus on creating a stable, well-structured baseline to mod from rather than encouraging users to jump straight into large or unstable setups. The intent is to provide a practical starting point that reflects what actually works in this windows conrainer environment.
+This guide will focus on creating a stable, well structured baseline to mod from rather than encouraging users to jump straight into large or unstable setups. The intent is to provide a practical starting point that reflects what actually works in this windows conrainer environment.
 
 ### Why Skyrim Legendary Edition?
 
-The initial guide is being planned around **Skyrim Legendary Edition** because it offers more performance headroom on slower chips than more demanding Bethesda titles. That makes it a better baseline for early Android container-based modding work, especially when testing on hardware with tighter performance limits.
+The initial guide is being planned around **Skyrim Legendary Edition** because it offers more performance headroom on slower chips than more demanding Bethesda titles. That makes it a better baseline for early Android container based modding work, especially when testing on hardware with tighter performance limits.
 
 ### Guide Goals
 
 The beta guide is intended to emphasize:
 
 - a clean and stable base setup
-- practical compatibility-focused mod choices
+- practical compatibility focused mod choices
 - a reliable starting point for future expansion
 - easier troubleshooting through a more controlled baseline
-- a modding path that is more realistic for lower-end or slower ARM64 devices
+- a modding path that is more realistic for lower end or slower ARM64 devices
 
 ---
 
@@ -164,11 +164,11 @@ Current development is centered on foundational components such as:
 
 ## Why This Project Exists
 
-Mobile and container-based Bethesda modding still has major tooling gaps.
+Mobile and container based Bethesda modding still has major tooling gaps.
 
 Many users attempting these workflows end up manually copying files, guessing at folder structure, troubleshooting blind conflicts, and rebuilding setups from scratch when something goes wrong. DroidModLoader exists to reduce that friction and make the process more understandable for both new and experienced users.
 
-The long-term aim is a mod manager that is practical, transparent, and grounded in real-world Android modding constraints.
+The long term aim is a mod manager that is practical, transparent, and grounded in real-world Android modding constraints.
 
 ---
 
@@ -219,8 +219,8 @@ Bug reports, technical suggestions, and compatibility findings are all useful.
 
 ## Disclaimer
 
-DroidModLoader is an independent project. Users are responsible for complying with the permissions, licenses, and distribution terms associated with any third-party mods they install or manage.
+DroidModLoader is an independent project. Users are responsible for complying with the permissions, licenses, and distribution terms associated with any third party mods they install or manage.
 
-This project does not claim ownership over third-party mods, game assets, or external community tools.
+This project does not claim ownership over third party mods, game assets, or external community tools.
 
 ---
