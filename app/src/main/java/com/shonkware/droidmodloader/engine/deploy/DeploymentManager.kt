@@ -29,7 +29,12 @@ class DeploymentManager(
         "skse",
         "nvse",
         "obse",
-        "f4se"
+        "f4se",
+        "menus",
+        "fonts",
+        "shaders",
+        "videos",
+        "fose",
     )
 
     fun deploy(

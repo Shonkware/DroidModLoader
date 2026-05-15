@@ -31,6 +31,7 @@ import java.io.File
 import com.shonkware.droidmodloader.ui.FullscreenPanel
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 
+
 class MainActivity : ComponentActivity() {
 
     companion object {
@@ -96,6 +97,8 @@ class MainActivity : ComponentActivity() {
 
     private var overwriteEntries by mutableStateOf<List<OverwriteEntry>>(emptyList())
     private var showOverwriteDialog by mutableStateOf(false)
+    private var overwriteBaselineExists by mutableStateOf(false)
+    private var overwriteMessage by mutableStateOf("")
 
     private val importZipLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -144,6 +147,8 @@ class MainActivity : ComponentActivity() {
             appendError("Failed to persist folder permission: ${e.message}", e)
         }
     }
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -227,6 +232,8 @@ class MainActivity : ComponentActivity() {
             fullscreenPanel = fullscreenPanel,
             overwriteEntries = overwriteEntries,
             showOverwriteDialog = showOverwriteDialog,
+            overwriteBaselineExists = overwriteBaselineExists,
+            overwriteMessage = overwriteMessage,
 
         )
     }
@@ -273,7 +280,15 @@ class MainActivity : ComponentActivity() {
             },
             onSelectGame = { gameId ->
                 selectedGameId = gameId
-                runInBackground { loadSelectedGameConfigIntoUi() }
+                loadSelectedGameConfigIntoUi()
+                runInBackground {
+                    ensureDataBaselineIfMissing("selected game changed")
+                    val engine = createModEngineForWorkflows()
+                    if (engine != null) {
+                        syncPluginsFromCurrentState(engine)
+                    }
+                    refreshDashboard()
+                }
             },
             onRealDeployChanged = { enabled ->
                 realDeployEnabledState = enabled
@@ -295,11 +310,7 @@ class MainActivity : ComponentActivity() {
             onProfileNameChanged = { profileNameText = it },
             onSetupGameChanged = { gameId ->
                 setupGameId = gameId
-                setupGameDisplayName = when (gameId) {
-                    "skyrim_le" -> "Skyrim Legendary Edition"
-                    "fallout_nv" -> "Fallout New Vegas"
-                    else -> gameId
-                }
+                setupGameDisplayName = getGameDisplayName(gameId)
             },
             onSetupTargetPathChanged = { setupTargetPathText = it },
             onSetupRealDeployChanged = { setupRealDeployEnabled = it },
@@ -312,11 +323,7 @@ class MainActivity : ComponentActivity() {
             onNewProfileNameChanged = { newProfileNameText = it },
             onNewProfileGameChanged = { gameId ->
                 newProfileGameId = gameId
-                newProfileGameDisplayName = when (gameId) {
-                    "skyrim_le" -> "Skyrim Legendary Edition"
-                    "fallout_nv" -> "Fallout New Vegas"
-                    else -> gameId
-                }
+                newProfileGameDisplayName = getGameDisplayName(gameId)
             },
             onNewProfileRealDeployChanged = { newProfileRealDeployEnabled = it },
             onCreateAdditionalProfile = {
@@ -396,6 +403,8 @@ class MainActivity : ComponentActivity() {
             loadSelectedGameConfigIntoUi()
             migratePrioritySpacingIfNeeded()
 
+            ensureDataBaselineIfMissing("startup")
+
             val engine = createModEngineForWorkflows()
             if (engine != null) {
                 syncPluginsFromCurrentState(engine)
@@ -403,6 +412,7 @@ class MainActivity : ComponentActivity() {
 
             refreshDashboard()
         }
+
         appendLog("UI ready.")
     }
     private fun runInBackground(block: () -> Unit) {
@@ -789,6 +799,7 @@ class MainActivity : ComponentActivity() {
 
         engine.saveGameDeploymentConfigs(existingConfigs)
         saveActiveProfileFromDashboard()
+        ensureDataBaselineIfMissing("target folder selected")
         refreshDashboard()
 
         runOnUiThread {
@@ -1060,24 +1071,28 @@ class MainActivity : ComponentActivity() {
 
         val normalized = engine.normalizePluginPriorities(merged)
         engine.saveCurrentPlugins(normalized)
-
+        appendLog("Selected game: $selectedGameId")
+        appendLog("Data folder plugin count: ${dataFolderPlugins.size}")
+        appendLog("Managed plugin count: ${managedPlugins.size}")
         appendLog("Plugin scan complete. Plugin count: ${normalized.size}")
     }
 
     private fun refreshGameOptions() {
-        val engine = createModEngineForWorkflows() ?: return
-        val configs = engine.loadGameDeploymentConfigs()
-
-        val options = if (configs.isEmpty()) {
-            listOf("skyrim_le", "fallout_nv")
-        } else {
-            configs.map { it.gameId }
-        }
-
         runOnUiThread {
-            gameOptions = options
-            if (selectedGameId !in options) {
-                selectedGameId = options.firstOrNull() ?: "skyrim_le"
+            gameOptions = getSupportedGameIds()
+
+            if (selectedGameId !in gameOptions) {
+                selectedGameId = "skyrim_le"
+            }
+
+            if (setupGameId !in gameOptions) {
+                setupGameId = "skyrim_le"
+                setupGameDisplayName = getGameDisplayName(setupGameId)
+            }
+
+            if (newProfileGameId !in gameOptions) {
+                newProfileGameId = "skyrim_le"
+                newProfileGameDisplayName = getGameDisplayName(newProfileGameId)
             }
         }
     }
@@ -1207,9 +1222,10 @@ class MainActivity : ComponentActivity() {
     private fun getGameDisplayName(gameId: String): String {
         return when (gameId) {
             "skyrim_le" -> "Skyrim Legendary Edition"
+            "oblivion" -> "Oblivion"
+            "fallout_3" -> "Fallout 3"
             "fallout_nv" -> "Fallout New Vegas"
             "fallout_4" -> "Fallout 4"
-            "oblivion" -> "Oblivion"
             else -> gameId
         }
     }
@@ -1651,17 +1667,56 @@ class MainActivity : ComponentActivity() {
         val engine = createModEngineForWorkflows() ?: return
 
         try {
-            val entries = engine.scanOverwriteFiles(selectedGameId)
+            ensureDataBaselineIfMissing("opening overwrite folder")
+
+            val result = engine.scanOverwriteFiles(selectedGameId)
 
             runOnUiThread {
-                overwriteEntries = entries
+                overwriteEntries = result.entries
+                overwriteBaselineExists = result.baselineExists
+                overwriteMessage = result.message
                 showOverwriteDialog = true
             }
 
-            appendLog("Opened overwrite folder panel. Entry count: ${entries.size}")
+            appendLog("Opened overwrite folder panel. ${result.message}")
         } catch (e: Exception) {
             appendError("Failed to scan overwrite files: ${e.message}", e)
         }
     }
+    private fun ensureDataBaselineIfMissing(reason: String) {
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            if (engine.hasDataBaseline(selectedGameId)) {
+                appendLog("Data baseline already exists for $selectedGameId.")
+                return
+            }
+
+            val snapshot = engine.rebuildDataBaseline(selectedGameId)
+
+            runOnUiThread {
+                overwriteBaselineExists = true
+                overwriteMessage = "Indexed ${snapshot.files.size} existing Data folder files."
+            }
+
+            appendLog("Created Data baseline automatically for $selectedGameId.")
+            appendLog("Baseline reason: $reason")
+            appendLog("Baseline file count: ${snapshot.files.size}")
+
+            updateLastOperationStatus("Indexed existing Data folder automatically.")
+        } catch (e: Exception) {
+            appendError("Automatic Data baseline failed: ${e.message}", e)
+        }
+    }
+
+    private fun getSupportedGameIds(): List<String> {
+        return listOf(
+            "skyrim_le",
+            "oblivion",
+            "fallout_3",
+            "fallout_nv"
+        )
+    }
+
 }
 

@@ -20,8 +20,9 @@ class GamePluginRules {
     private fun getOfficialRules(gameId: String): List<OfficialPluginRule> {
         return when (gameId) {
             "skyrim_le" -> skyrimLeRules()
-            "fallout_nv" -> falloutNvRules()
             "oblivion" -> oblivionRules()
+            "fallout_3" -> fallout3Rules()
+            "fallout_nv" -> falloutNvRules()
             "fallout_4" -> fallout4Rules()
             else -> emptyList()
         }
@@ -33,7 +34,41 @@ class GamePluginRules {
             OfficialPluginRule("Update.esm", "base_game", 2, locked = true, defaultEnabled = true),
             OfficialPluginRule("Dawnguard.esm", "official_dlc", 3, locked = true, defaultEnabled = true),
             OfficialPluginRule("HearthFires.esm", "official_dlc", 4, locked = true, defaultEnabled = true),
-            OfficialPluginRule("Dragonborn.esm", "official_dlc", 5, locked = true, defaultEnabled = true)
+            OfficialPluginRule("Dragonborn.esm", "official_dlc", 5, locked = true, defaultEnabled = true),
+
+            // Optional official High Resolution Texture Pack plugins.
+            OfficialPluginRule("HighResTexturePack01.esp", "official_dlc", 6, locked = false, defaultEnabled = true),
+            OfficialPluginRule("HighResTexturePack02.esp", "official_dlc", 7, locked = false, defaultEnabled = true),
+            OfficialPluginRule("HighResTexturePack03.esp", "official_dlc", 8, locked = false, defaultEnabled = true)
+        )
+    }
+
+    private fun oblivionRules(): List<OfficialPluginRule> {
+        return listOf(
+            OfficialPluginRule("Oblivion.esm", "base_game", 1, locked = true, defaultEnabled = true),
+
+            // Shivering Isles / official DLC plug-ins.
+            OfficialPluginRule("DLCShiveringIsles.esp", "official_dlc", 2, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DLCBattlehornCastle.esp", "official_dlc", 3, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DLCFrostcrag.esp", "official_dlc", 4, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DLCHorseArmor.esp", "official_dlc", 5, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DLCMehrunesRazor.esp", "official_dlc", 6, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DLCOrrery.esp", "official_dlc", 7, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DLCSpellTomes.esp", "official_dlc", 8, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DLCThievesDen.esp", "official_dlc", 9, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DLCVileLair.esp", "official_dlc", 10, locked = true, defaultEnabled = true),
+            OfficialPluginRule("Knights.esp", "official_dlc", 11, locked = true, defaultEnabled = true)
+        )
+    }
+
+    private fun fallout3Rules(): List<OfficialPluginRule> {
+        return listOf(
+            OfficialPluginRule("Fallout3.esm", "base_game", 1, locked = true, defaultEnabled = true),
+            OfficialPluginRule("Anchorage.esm", "official_dlc", 2, locked = true, defaultEnabled = true),
+            OfficialPluginRule("ThePitt.esm", "official_dlc", 3, locked = true, defaultEnabled = true),
+            OfficialPluginRule("BrokenSteel.esm", "official_dlc", 4, locked = true, defaultEnabled = true),
+            OfficialPluginRule("PointLookout.esm", "official_dlc", 5, locked = true, defaultEnabled = true),
+            OfficialPluginRule("Zeta.esm", "official_dlc", 6, locked = true, defaultEnabled = true)
         )
     }
 
@@ -45,16 +80,12 @@ class GamePluginRules {
             OfficialPluginRule("OldWorldBlues.esm", "official_dlc", 4, locked = true, defaultEnabled = true),
             OfficialPluginRule("LonesomeRoad.esm", "official_dlc", 5, locked = true, defaultEnabled = true),
             OfficialPluginRule("GunRunnersArsenal.esm", "official_dlc", 6, locked = true, defaultEnabled = true),
+
+            // Courier's Stash packs. They are official, but leave them movable/disableable.
             OfficialPluginRule("ClassicPack.esm", "official_dlc", 7, locked = false, defaultEnabled = true),
             OfficialPluginRule("MercenaryPack.esm", "official_dlc", 8, locked = false, defaultEnabled = true),
             OfficialPluginRule("TribalPack.esm", "official_dlc", 9, locked = false, defaultEnabled = true),
             OfficialPluginRule("CaravanPack.esm", "official_dlc", 10, locked = false, defaultEnabled = true)
-        )
-    }
-
-    private fun oblivionRules(): List<OfficialPluginRule> {
-        return listOf(
-            OfficialPluginRule("Oblivion.esm", "base_game", 1, locked = true, defaultEnabled = true)
         )
     }
 

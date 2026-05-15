@@ -129,6 +129,8 @@ class ModContentIndexer {
             parent.startsWith("nvse/plugins") ||
             parent.startsWith("obse") ||
             parent.startsWith("obse/plugins") ||
+            parent.startsWith("fose") ||
+            parent.startsWith("fose/plugins") ||
             parent.startsWith("f4se") ||
             parent.startsWith("f4se/plugins")
         ) {
@@ -145,6 +147,7 @@ class ModContentIndexer {
         if (path.startsWith("skse/")) return true
         if (path.startsWith("nvse/")) return true
         if (path.startsWith("obse/")) return true
+        if (path.startsWith("fose/")) return true
         if (path.startsWith("f4se/")) return true
 
         return false
@@ -163,14 +166,17 @@ class ModContentIndexer {
             "seq/",
             "strings/",
             "video/",
+            "videos/",
             "lodsettings/",
             "grass/",
+            "shaders/",
             "shadersfx/",
             "materials/",
             "vis/",
             "terrain/",
             "trees/",
             "facegen/",
+            "fonts/",
             "actors/",
             "animations/",
             "skyproc patchers/",
@@ -180,6 +186,7 @@ class ModContentIndexer {
             "skse/",
             "nvse/",
             "obse/",
+            "fose/",
             "f4se/"
         )
 

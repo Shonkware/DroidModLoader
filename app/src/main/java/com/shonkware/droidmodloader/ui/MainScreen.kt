@@ -59,6 +59,8 @@ data class DashboardUiState(
     val fullscreenPanel: FullscreenPanel,
     val overwriteEntries: List<OverwriteEntry>,
     val showOverwriteDialog: Boolean,
+    val overwriteBaselineExists: Boolean,
+    val overwriteMessage: String,
 
 )
 
@@ -117,8 +119,6 @@ data class DashboardActions(
 
     val onOpenOverwriteFolder: () -> Unit,
     val onCloseOverwriteFolder: () -> Unit,
-
-
 
 )
 
@@ -179,16 +179,13 @@ private fun MainDashboardScreen(
             )
 
             DeploymentSettingsCard(
-                gameOptions = state.gameOptions,
-                selectedGameId = state.selectedGameId,
-                onSelectGame = actions.onSelectGame,
                 selectedTreeUriText = state.selectedTreeUriText,
                 realDeployEnabled = state.realDeployEnabled,
                 secondScreenEnabled = state.secondScreenEnabled,
                 onRealDeployChanged = actions.onRealDeployChanged,
                 onPickTargetFolder = actions.onPickTargetFolder,
                 onSaveSettings = actions.onSaveSettings,
-                onToggleSecondScreen = actions.onToggleSecondScreen
+                onToggleSecondScreen = actions.onToggleSecondScreen,
             )
 
             ReportCard(
@@ -208,6 +205,37 @@ fun DroidModLoaderScreen(
     state: DashboardUiState,
     actions: DashboardActions
 ) {
+    MainDashboardScreen(
+        state = state,
+        actions = actions
+    )
+    if (state.fullscreenPanel == FullscreenPanel.MODS) {
+        ModsPanelDialog(
+            mods = state.mods,
+            modContentIndexes = state.modContentIndexes,
+            onToggleMod = actions.onToggleMod,
+            onMoveModUp = actions.onMoveModUp,
+            onMoveModDown = actions.onMoveModDown,
+            onDeleteMod = actions.onDeleteMod,
+            onViewModFiles = actions.onViewModFiles,
+            onApplyModOrder = actions.onApplyModOrder,
+            onOpenOverwriteFolder = actions.onOpenOverwriteFolder,
+            onClose = actions.onCloseFullscreenPanel
+        )
+    }
+
+    if (state.fullscreenPanel == FullscreenPanel.PLUGINS) {
+        PluginsPanelDialog(
+            plugins = state.plugins,
+            onTogglePlugin = actions.onTogglePlugin,
+            onMovePluginUp = actions.onMovePluginUp,
+            onMovePluginDown = actions.onMovePluginDown,
+            onApplyPluginOrder = actions.onApplyPluginOrder,
+            onClose = actions.onCloseFullscreenPanel
+        )
+    }
+
+
     if (!state.setupComplete) {
         SetupScreen(
             state = state,
@@ -218,7 +246,7 @@ fun DroidModLoaderScreen(
 
     when (state.fullscreenPanel) {
         FullscreenPanel.MODS -> {
-            FullscreenModsPanel(
+            ModsPanelDialog(
                 mods = state.mods,
                 modContentIndexes = state.modContentIndexes,
                 onToggleMod = actions.onToggleMod,
@@ -233,7 +261,7 @@ fun DroidModLoaderScreen(
         }
 
         FullscreenPanel.PLUGINS -> {
-            FullscreenPluginsPanel(
+            PluginsPanelDialog(
                 plugins = state.plugins,
                 onTogglePlugin = actions.onTogglePlugin,
                 onMovePluginUp = actions.onMovePluginUp,
@@ -266,7 +294,9 @@ fun DroidModLoaderScreen(
             onPickNewProfileTargetFolder = actions.onPickNewProfileTargetFolder,
             onNewProfileRealDeployChanged = actions.onNewProfileRealDeployChanged,
             onCreateAdditionalProfile = actions.onCreateAdditionalProfile,
-            onClose = actions.onCloseProfileDialog
+            onClose = actions.onCloseProfileDialog,
+            gameOptions = state.gameOptions,
+
         )
     }
 
@@ -294,40 +324,12 @@ fun DroidModLoaderScreen(
     if (state.showOverwriteDialog) {
         OverwriteDialog(
             entries = state.overwriteEntries,
+            baselineExists = state.overwriteBaselineExists,
+            message = state.overwriteMessage,
             onClose = actions.onCloseOverwriteFolder
         )
     }
 
-
-    if (state.fullscreenPanel == FullscreenPanel.MODS) {
-        FullscreenModsPanel(
-            mods = state.mods,
-            modContentIndexes = state.modContentIndexes,
-            onToggleMod = actions.onToggleMod,
-            onMoveModUp = actions.onMoveModUp,
-            onMoveModDown = actions.onMoveModDown,
-            onDeleteMod = actions.onDeleteMod,
-            onViewModFiles = actions.onViewModFiles,
-            onApplyModOrder = actions.onApplyModOrder,
-            onOpenOverwriteFolder = actions.onOpenOverwriteFolder,
-            onClose = actions.onCloseFullscreenPanel
-        )
-
-        return
-    }
-
-    if (state.fullscreenPanel == FullscreenPanel.PLUGINS) {
-        FullscreenPluginsPanel(
-            plugins = state.plugins,
-            onTogglePlugin = actions.onTogglePlugin,
-            onMovePluginUp = actions.onMovePluginUp,
-            onMovePluginDown = actions.onMovePluginDown,
-            onApplyPluginOrder = actions.onApplyPluginOrder,
-            onClose = actions.onCloseFullscreenPanel
-        )
-
-        return
-    }
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -374,16 +376,13 @@ fun DroidModLoaderScreen(
                 onOpenFullscreen = actions.onOpenPluginsFullscreen,
             )
             DeploymentSettingsCard(
-                gameOptions = state.gameOptions,
-                selectedGameId = state.selectedGameId,
-                onSelectGame = actions.onSelectGame,
                 selectedTreeUriText = state.selectedTreeUriText,
                 realDeployEnabled = state.realDeployEnabled,
                 secondScreenEnabled = state.secondScreenEnabled,
                 onRealDeployChanged = actions.onRealDeployChanged,
                 onPickTargetFolder = actions.onPickTargetFolder,
                 onSaveSettings = actions.onSaveSettings,
-                onToggleSecondScreen = actions.onToggleSecondScreen
+                onToggleSecondScreen = actions.onToggleSecondScreen,
 
             )
             ReportCard(
@@ -399,6 +398,7 @@ fun DroidModLoaderScreen(
         ProfileManagerDialog(
             profiles = state.profileOptions,
             activeProfileId = state.activeProfileId,
+            gameOptions = state.gameOptions,
             newProfileNameText = state.newProfileNameText,
             newProfileGameId = state.newProfileGameId,
             newProfileTreeUriText = state.newProfileTreeUriText,

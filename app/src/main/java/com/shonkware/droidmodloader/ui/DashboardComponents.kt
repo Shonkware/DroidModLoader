@@ -2,6 +2,7 @@ package com.shonkware.droidmodloader.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,11 +14,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -32,76 +36,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.unit.dp
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
+import com.shonkware.droidmodloader.engine.index.ModFileFolderSummary
+import com.shonkware.droidmodloader.engine.index.ModFilePreview
+import com.shonkware.droidmodloader.engine.index.ModFilePreviewStatus
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
-import com.shonkware.droidmodloader.engine.index.ModFilePreview
-import com.shonkware.droidmodloader.engine.index.ModFilePreviewEntry
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.material3.CardDefaults
-import com.shonkware.droidmodloader.engine.index.ModFileFolderSummary
-import com.shonkware.droidmodloader.engine.index.ModFilePreviewStatus
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
-
-private data class UiFileTreeNode(
-    val name: String,
-    val path: String,
-    val isFile: Boolean,
-    val status: ModFilePreviewStatus?,
-    val children: MutableList<UiFileTreeNode> = mutableListOf()
-)
-
-private fun buildPreviewTree(entries: List<ModFilePreviewEntry>): List<UiFileTreeNode> {
-    val roots = mutableMapOf<String, UiFileTreeNode>()
-
-    for (entry in entries) {
-        val parts = entry.normalizedPath.split("/").filter { it.isNotBlank() }
-        if (parts.isEmpty()) continue
-
-        var currentMap = roots
-        var currentPath = ""
-
-        for ((index, part) in parts.withIndex()) {
-            currentPath = if (currentPath.isBlank()) part else "$currentPath/$part"
-            val isFile = index == parts.lastIndex
-
-            val node = currentMap.getOrPut(part) {
-                UiFileTreeNode(
-                    name = part,
-                    path = currentPath,
-                    isFile = isFile,
-                    status = if (isFile) entry.status else null
-                )
-            }
-
-            if (!isFile) {
-                currentMap = node.children.associateBy { it.name }.toMutableMap()
-                node.children.clear()
-                node.children.addAll(currentMap.values)
-            }
-        }
-    }
-
-    return roots.values.sortedBy { it.name }
-}
-
-private fun groupPreviewByTopFolder(entries: List<ModFilePreviewEntry>): Map<String, List<ModFilePreviewEntry>> {
-    return entries.groupBy { entry ->
-        entry.normalizedPath.substringBefore("/", entry.normalizedPath)
-    }.toSortedMap()
-}
-
 
 @Composable
 fun HeaderCard(
@@ -351,9 +301,7 @@ fun CompactModRow(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { onMoveModUp(mod.id) }) {
                             Text("Up")
                         }
@@ -582,9 +530,6 @@ fun PluginRow(
 
 @Composable
 fun DeploymentSettingsCard(
-    gameOptions: List<String>,
-    selectedGameId: String,
-    onSelectGame: (String) -> Unit,
     selectedTreeUriText: String,
     realDeployEnabled: Boolean,
     secondScreenEnabled: Boolean,
@@ -600,17 +545,10 @@ fun DeploymentSettingsCard(
         ) {
             Text("Deployment & Settings", fontWeight = FontWeight.Bold)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                gameOptions.forEach { gameId ->
-                    FilterChip(
-                        selected = selectedGameId == gameId,
-                        onClick = { onSelectGame(gameId) },
-                        label = { Text(gameId) }
-                    )
-                }
-            }
-
-            Text("Selected folder: $selectedTreeUriText")
+            Text(
+                text = "Selected folder: $selectedTreeUriText",
+                style = MaterialTheme.typography.bodySmall
+            )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
@@ -622,7 +560,12 @@ fun DeploymentSettingsCard(
 
                 Text("Write to Real Target Folder")
             }
-            Text("Pick 'Data' folder of your installed game")
+
+            Text(
+                text = "Pick the Data folder of your installed game.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
             Button(
                 onClick = onPickTargetFolder,
                 modifier = Modifier.fillMaxWidth()
@@ -636,6 +579,7 @@ fun DeploymentSettingsCard(
             ) {
                 Text("Save Settings")
             }
+
             Button(
                 onClick = onToggleSecondScreen,
                 modifier = Modifier.fillMaxWidth()
@@ -647,6 +591,27 @@ fun DeploymentSettingsCard(
                         "Enable Second Screen Plugin Display"
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameOptionChips(
+    gameOptions: List<String>,
+    selectedGameId: String,
+    onSelectGame: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        gameOptions.chunked(2).forEach { rowGames ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowGames.forEach { gameId ->
+                    FilterChip(
+                        selected = selectedGameId == gameId,
+                        onClick = { onSelectGame(gameId) },
+                        label = { Text(gameId) }
+                    )
+                }
             }
         }
     }
@@ -718,17 +683,17 @@ fun SetupScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("skyrim_le", "fallout_nv").forEach { gameId ->
-                            FilterChip(
-                                selected = state.setupGameId == gameId,
-                                onClick = { actions.onSetupGameChanged(gameId) },
-                                label = { Text(gameId) }
-                            )
-                        }
-                    }
+                    GameOptionChips(
+                        gameOptions = state.gameOptions,
+                        selectedGameId = state.setupGameId,
+                        onSelectGame = actions.onSetupGameChanged
+                    )
 
                     Text("Target folder: ${state.selectedTreeUriText}")
+                    Text(
+                        text = "Pick the Data folder of your installed game.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
 
                     Button(
                         onClick = actions.onPickTargetFolder,
@@ -775,7 +740,8 @@ fun ProfileManagerDialog(
     onPickNewProfileTargetFolder: () -> Unit,
     onNewProfileRealDeployChanged: (Boolean) -> Unit,
     onCreateAdditionalProfile: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    gameOptions: List<String>
 ) {
     AlertDialog(
         onDismissRequest = onClose,
@@ -831,17 +797,17 @@ fun ProfileManagerDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("skyrim_le", "fallout_nv").forEach { gameId ->
-                        FilterChip(
-                            selected = newProfileGameId == gameId,
-                            onClick = { onNewProfileGameChanged(gameId) },
-                            label = { Text(gameId) }
-                        )
-                    }
-                }
+                GameOptionChips(
+                    gameOptions = gameOptions,
+                    selectedGameId = newProfileGameId,
+                    onSelectGame = onNewProfileGameChanged
+                )
 
                 Text("Selected folder: $newProfileTreeUriText")
+                Text(
+                    text = "Pick the Data folder of your installed game.",
+                    style = MaterialTheme.typography.bodySmall
+                )
 
                 Button(
                     onClick = onPickNewProfileTargetFolder,
@@ -871,6 +837,7 @@ fun ProfileManagerDialog(
         }
     )
 }
+
 @Composable
 fun InstallerChoiceDialog(
     prepared: PreparedArchiveInstall,
@@ -971,6 +938,7 @@ fun InstallerChoiceDialog(
         }
     }
 }
+
 @Composable
 fun ModFilePreviewDialog(
     preview: ModFilePreview,
@@ -1025,6 +993,8 @@ fun ModFilePreviewDialog(
 @Composable
 fun OverwriteDialog(
     entries: List<OverwriteEntry>,
+    baselineExists: Boolean,
+    message: String,
     onClose: () -> Unit
 ) {
     Dialog(
@@ -1050,12 +1020,19 @@ fun OverwriteDialog(
                 )
 
                 Text(
-                    text = "Files detected in the target Data folder that are not currently tracked by Droid Mod Loader.",
+                    text = "MO2-style catch-all for files created or changed after the target Data folder was indexed.",
                     style = MaterialTheme.typography.bodySmall
                 )
 
-                if (entries.isEmpty()) {
-                    Text("No overwrite files detected.")
+                Text(message)
+
+                if (!baselineExists) {
+                    Text(
+                        text = "No Data baseline is available yet. Droid Mod Loader will create one automatically after a target folder is selected.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else if (entries.isEmpty()) {
+                    Text("Overwrite is clean.")
                 } else {
                     entries.forEach { entry ->
                         Card(
@@ -1066,8 +1043,15 @@ fun OverwriteDialog(
                                 modifier = Modifier.padding(10.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(entry.normalizedPath, fontWeight = FontWeight.Bold)
-                                Text(entry.reason, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    text = "[${entry.status}] ${entry.normalizedPath}",
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text = entry.reason,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
 
                                 if (entry.sizeBytes != null) {
                                     Text(
@@ -1138,48 +1122,7 @@ fun FolderSummaryRow(
 }
 
 @Composable
-fun FilePreviewSection(
-    title: String,
-    entries: List<ModFilePreviewEntry>
-) {
-    if (entries.isEmpty()) return
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(title, fontWeight = FontWeight.Bold)
-
-            entries.take(50).forEach { entry ->
-                val suffix = when {
-                    entry.winningModName != null && title == "Overwritten" ->
-                        " → winner: ${entry.winningModName}"
-
-                    else -> ""
-                }
-
-                Text(
-                    text = entry.normalizedPath + suffix,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            if (entries.size > 50) {
-                Text(
-                    text = "...and ${entries.size - 50} more",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun FullscreenModsPanel(
+fun ModsPanelDialog(
     mods: List<Mod>,
     modContentIndexes: Map<String, ModContentIndex>,
     onToggleMod: (String) -> Unit,
@@ -1195,7 +1138,10 @@ fun FullscreenModsPanel(
         mutableStateOf(mods.sortedBy { it.priority })
     }
 
-    fun moveMod(index: Int, direction: Int) {
+    fun moveMod(modId: String, direction: Int) {
+        val index = orderedMods.indexOfFirst { it.id == modId }
+        if (index == -1) return
+
         val target = (index + direction).coerceIn(0, orderedMods.lastIndex)
         if (target == index) return
 
@@ -1205,78 +1151,87 @@ fun FullscreenModsPanel(
         orderedMods = mutable
     }
 
-    Scaffold { padding ->
-        Column(
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .fillMaxWidth(0.97f)
+                .fillMaxHeight(0.94f)
+                .padding(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Mods",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Mods",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onOpenOverwriteFolder) {
-                        Text("Overwrite")
-                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onOpenOverwriteFolder) {
+                            Text("Overwrite")
+                        }
 
-                    Button(onClick = {
-                        onApplyModOrder(orderedMods.map { it.id })
-                    }) {
-                        Text("Save Order")
-                    }
+                        Button(onClick = {
+                            onApplyModOrder(orderedMods.map { it.id })
+                        }) {
+                            Text("Save Order")
+                        }
 
-                    Button(onClick = onClose) {
-                        Text("Close")
+                        Button(onClick = onClose) {
+                            Text("Close")
+                        }
                     }
                 }
-            }
 
-            Text(
-                text = "Long-press and drag ☰ to reorder. Tap Save Order when done.",
-                style = MaterialTheme.typography.bodySmall
-            )
+                Text(
+                    text = "Long-press and drag ☰ to reorder. Tap Save Order when done.",
+                    style = MaterialTheme.typography.bodySmall
+                )
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                itemsIndexed(
-                    items = orderedMods,
-                    key = { _, mod -> mod.id }
-                ) { index, mod ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DragHandle(
-                            onStep = { direction ->
-                                moveMod(index, direction)
-                            },
-                            onDragFinished = {
-                                onApplyModOrder(orderedMods.map { it.id })
-                            }
-                        )
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            CompactModRow(
-                                mod = mod,
-                                contentIndex = modContentIndexes[mod.id],
-                                onToggleMod = onToggleMod,
-                                onMoveModUp = onMoveModUp,
-                                onMoveModDown = onMoveModDown,
-                                onDeleteMod = onDeleteMod,
-                                onViewModFiles = onViewModFiles
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    itemsIndexed(
+                        items = orderedMods,
+                        key = { _, mod -> mod.id }
+                    ) { _, mod ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            DragHandle(
+                                onStep = { direction ->
+                                    moveMod(mod.id, direction)
+                                },
+                                onDragFinished = {
+                                    onApplyModOrder(orderedMods.map { it.id })
+                                }
                             )
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                CompactModRow(
+                                    mod = mod,
+                                    contentIndex = modContentIndexes[mod.id],
+                                    onToggleMod = onToggleMod,
+                                    onMoveModUp = onMoveModUp,
+                                    onMoveModDown = onMoveModDown,
+                                    onDeleteMod = onDeleteMod,
+                                    onViewModFiles = onViewModFiles
+                                )
+                            }
                         }
                     }
                 }
@@ -1286,7 +1241,7 @@ fun FullscreenModsPanel(
 }
 
 @Composable
-fun FullscreenPluginsPanel(
+fun PluginsPanelDialog(
     plugins: List<PluginEntry>,
     onTogglePlugin: (String) -> Unit,
     onMovePluginUp: (String) -> Unit,
@@ -1298,8 +1253,11 @@ fun FullscreenPluginsPanel(
         mutableStateOf(plugins.sortedBy { it.priority })
     }
 
-    fun movePlugin(index: Int, direction: Int) {
-        val plugin = orderedPlugins.getOrNull(index) ?: return
+    fun movePlugin(pluginPath: String, direction: Int) {
+        val index = orderedPlugins.indexOfFirst { it.normalizedPath == pluginPath }
+        if (index == -1) return
+
+        val plugin = orderedPlugins[index]
         if (plugin.locked) return
 
         val target = (index + direction).coerceIn(0, orderedPlugins.lastIndex)
@@ -1312,72 +1270,81 @@ fun FullscreenPluginsPanel(
         orderedPlugins = mutable
     }
 
-    Scaffold { padding ->
-        Column(
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .fillMaxWidth(0.97f)
+                .fillMaxHeight(0.94f)
+                .padding(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Plugins",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Plugins",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        onApplyPluginOrder(orderedPlugins.map { it.normalizedPath })
-                    }) {
-                        Text("Save Order")
-                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            onApplyPluginOrder(orderedPlugins.map { it.normalizedPath })
+                        }) {
+                            Text("Save Order")
+                        }
 
-                    Button(onClick = onClose) {
-                        Text("Close")
+                        Button(onClick = onClose) {
+                            Text("Close")
+                        }
                     }
                 }
-            }
 
-            Text(
-                text = "Long-press and drag ☰ to reorder unlocked plugins. Official plugins stay pinned.",
-                style = MaterialTheme.typography.bodySmall
-            )
+                Text(
+                    text = "Long-press and drag ☰ to reorder unlocked plugins. Official plugins stay pinned.",
+                    style = MaterialTheme.typography.bodySmall
+                )
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                itemsIndexed(
-                    items = orderedPlugins,
-                    key = { _, plugin -> plugin.normalizedPath }
-                ) { index, plugin ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DragHandle(
-                            enabled = !plugin.locked,
-                            onStep = { direction ->
-                                movePlugin(index, direction)
-                            },
-                            onDragFinished = {
-                                onApplyPluginOrder(orderedPlugins.map { it.normalizedPath })
-                            }
-                        )
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            PluginRow(
-                                plugin = plugin,
-                                onTogglePlugin = onTogglePlugin,
-                                onMovePluginUp = onMovePluginUp,
-                                onMovePluginDown = onMovePluginDown
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    itemsIndexed(
+                        items = orderedPlugins,
+                        key = { _, plugin -> plugin.normalizedPath }
+                    ) { _, plugin ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            DragHandle(
+                                enabled = !plugin.locked,
+                                onStep = { direction ->
+                                    movePlugin(plugin.normalizedPath, direction)
+                                },
+                                onDragFinished = {
+                                    onApplyPluginOrder(orderedPlugins.map { it.normalizedPath })
+                                }
                             )
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                PluginRow(
+                                    plugin = plugin,
+                                    onTogglePlugin = onTogglePlugin,
+                                    onMovePluginUp = onMovePluginUp,
+                                    onMovePluginDown = onMovePluginDown
+                                )
+                            }
                         }
                     }
                 }
@@ -1436,4 +1403,3 @@ private fun DragHandle(
             )
     )
 }
-

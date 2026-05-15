@@ -1,6 +1,6 @@
-package com.shonkware.droidmodloader.engine.overwrite
+package com.shonkware.droidmodloader.engine.baseline
 
-data class TargetDataFileEntry(
+data class DataBaselineFileRecord(
     val normalizedPath: String,
     val sizeBytes: Long?,
     val modifiedEpochMillis: Long?

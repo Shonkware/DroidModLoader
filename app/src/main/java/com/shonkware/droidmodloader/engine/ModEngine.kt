@@ -42,6 +42,10 @@ import com.shonkware.droidmodloader.engine.plugins.GamePluginRules
 import com.shonkware.droidmodloader.engine.index.ModFileFolderSummary
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteScanner
+import com.shonkware.droidmodloader.engine.baseline.DataBaselineFileRecord
+import com.shonkware.droidmodloader.engine.baseline.DataBaselineRepository
+import com.shonkware.droidmodloader.engine.baseline.DataBaselineSnapshot
+import com.shonkware.droidmodloader.engine.overwrite.OverwriteScanResult
 
 data class UninstallResult(
     val removed: Boolean,
@@ -91,6 +95,8 @@ class ModEngine(
     )
     private val dataFolderPluginScanner = DataFolderPluginScanner(appContext)
     private val gamePluginRules = GamePluginRules()
+
+
 
     fun installArchive(archive: File, priority: Int, enabled: Boolean = true): Mod {
         val extractedDir = modInstaller.installArchive(archive)
@@ -275,7 +281,10 @@ class ModEngine(
 
             if (deploymentManifestFile.parentFile?.exists() == true) {
                 deploymentManifestFile.parentFile?.listFiles()
-                    ?.filter { it.name.startsWith("deployment_manifest") && it.extension == "json" }
+                    ?.filter {
+                        (it.name.startsWith("deployment_manifest") && it.extension == "json") ||
+                                (it.name.startsWith("data_baseline") && it.extension == "json")
+                    }
                     ?.forEach { it.delete() }
             }
 
@@ -471,7 +480,6 @@ class ModEngine(
         val config = getGameDeploymentConfig(gameId)
 
         val effectiveManifestFile = getEffectiveDeploymentManifestFile(gameId)
-
         val effectiveManifestRepository = DeploymentManifestRepository(effectiveManifestFile)
         val oldManifest = effectiveManifestRepository.load()
         val newWinningRecords = getCurrentWinningRecords()
@@ -791,22 +799,20 @@ class ModEngine(
         )
     }
 
-    fun scanOverwriteFiles(gameId: String): List<OverwriteEntry> {
-        val config = getGameDeploymentConfig(gameId)
+    fun scanOverwriteFiles(gameId: String): OverwriteScanResult {
+        val baselineRepository = getDataBaselineRepository(gameId)
+        val baseline = baselineRepository.load()
 
-        val targetFiles = when {
-            config != null && config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() -> {
-                overwriteScanner.scanTreeUriDataFolder(config.targetTreeUri)
-            }
-
-            config != null && config.realDeployEnabled && validateTargetDataPath(config.targetDataPath) -> {
-                overwriteScanner.scanLocalDataFolder(File(config.targetDataPath))
-            }
-
-            else -> {
-                overwriteScanner.scanLocalDataFolder(deployRootDir)
-            }
+        if (baseline == null) {
+            return OverwriteScanResult(
+                baselineExists = false,
+                entries = emptyList(),
+                message = "No Data baseline exists yet. Index the current target Data folder first."
+            )
         }
+
+        val currentTargetFiles = scanTargetDataFiles(gameId)
+        val baselineByPath = baseline.files.associateBy { it.normalizedPath }
 
         val manifestRepository = DeploymentManifestRepository(
             getEffectiveDeploymentManifestFile(gameId)
@@ -816,56 +822,47 @@ class ModEngine(
             .map { it.normalizedPath }
             .toSet()
 
-        val knownPluginPaths = getCurrentPlugins()
-            .map { it.normalizedPath }
-            .toSet()
-
-        return targetFiles
+        val entries = currentTargetFiles
             .filterNot { it.normalizedPath in deployedPaths }
-            .filterNot { it.normalizedPath in knownPluginPaths }
             .filterNot { shouldIgnoreOverwritePath(it.normalizedPath) }
-            .map { file ->
-                OverwriteEntry(
-                    normalizedPath = file.normalizedPath,
-                    reason = getOverwriteReason(file.normalizedPath),
-                    sizeBytes = file.sizeBytes
-                )
+            .mapNotNull { currentFile ->
+                val baselineFile = baselineByPath[currentFile.normalizedPath]
+
+                when {
+                    baselineFile == null -> {
+                        OverwriteEntry(
+                            normalizedPath = currentFile.normalizedPath,
+                            reason = getOverwriteReason(currentFile.normalizedPath),
+                            sizeBytes = currentFile.sizeBytes,
+                            modifiedEpochMillis = currentFile.modifiedEpochMillis,
+                            status = "NEW"
+                        )
+                    }
+
+                    hasBaselineFileChanged(baselineFile, currentFile) -> {
+                        OverwriteEntry(
+                            normalizedPath = currentFile.normalizedPath,
+                            reason = "File changed after baseline was created",
+                            sizeBytes = currentFile.sizeBytes,
+                            modifiedEpochMillis = currentFile.modifiedEpochMillis,
+                            status = "CHANGED"
+                        )
+                    }
+
+                    else -> null
+                }
             }
             .sortedBy { it.normalizedPath }
-    }
 
-    private fun shouldIgnoreOverwritePath(normalizedPath: String): Boolean {
-        val lower = normalizedPath.lowercase()
-
-        return lower == "plugins.txt" ||
-                lower == "loadorder.txt" ||
-                lower.endsWith(".bak") ||
-                lower.endsWith(".tmp") ||
-                lower.endsWith(".old")
-    }
-
-    private fun getOverwriteReason(normalizedPath: String): String {
-        val lower = normalizedPath.lowercase()
-
-        return when {
-            lower.endsWith(".log") ->
-                "Generated log file"
-
-            lower.startsWith("skse/plugins/") ||
-                    lower.startsWith("nvse/plugins/") ||
-                    lower.startsWith("obse/plugins/") ||
-                    lower.startsWith("f4se/plugins/") ->
-                "Script extender generated file"
-
-            lower.contains("cache") ->
-                "Possible generated cache file"
-
-            lower.endsWith(".ini") ->
-                "Generated or externally modified config file"
-
-            else ->
-                "File exists in target Data folder but is not tracked by Droid Mod Loader"
-        }
+        return OverwriteScanResult(
+            baselineExists = true,
+            entries = entries,
+            message = if (entries.isEmpty()) {
+                "Overwrite is clean. No new or changed untracked files detected."
+            } else {
+                "Detected ${entries.size} overwrite candidate files."
+            }
+        )
     }
 
     private fun buildFolderSummaries(
@@ -940,4 +937,198 @@ class ModEngine(
         }
     }
 
+    private fun isOfficialGameDataFile(gameId: String, normalizedPath: String): Boolean {
+        val lower = normalizedPath.lowercase()
+
+        return when (gameId) {
+            "skyrim_le" -> lower in setOf(
+                "skyrim.esm",
+                "update.esm",
+                "dawnguard.esm",
+                "hearthfires.esm",
+                "dragonborn.esm",
+
+                "skyrim - animations.bsa",
+                "skyrim - interface.bsa",
+                "skyrim - meshes.bsa",
+                "skyrim - misc.bsa",
+                "skyrim - shaders.bsa",
+                "skyrim - sounds.bsa",
+                "skyrim - textures.bsa",
+                "skyrim - voices.bsa",
+                "skyrim - voicesextra.bsa",
+
+                "update.bsa",
+                "dawnguard.bsa",
+                "hearthfires.bsa",
+                "dragonborn.bsa",
+
+                "highrestexturepack01.esp",
+                "highrestexturepack02.esp",
+                "highrestexturepack03.esp",
+                "highrestexturepack01.bsa",
+                "highrestexturepack02.bsa",
+                "highrestexturepack03.bsa"
+            )
+
+            "fallout_nv" -> lower in setOf(
+                "falloutnv.esm",
+                "deadmoney.esm",
+                "honesthearts.esm",
+                "oldworldblues.esm",
+                "lonesomeroad.esm",
+                "gunrunnersarsenal.esm",
+                "classicpack.esm",
+                "mercenarypack.esm",
+                "tribalpack.esm",
+                "caravanpack.esm"
+            )
+
+            "oblivion" -> lower in setOf(
+                "oblivion.esm"
+            )
+
+            "fallout_4" -> lower in setOf(
+                "fallout4.esm",
+                "dlcrobot.esm",
+                "dlcworkshop01.esm",
+                "dlccoast.esm",
+                "dlcworkshop02.esm",
+                "dlcworkshop03.esm",
+                "dlcnukaworld.esm"
+            )
+
+            else -> false
+        }
+    }
+
+    private fun getDataBaselineFile(gameId: String): File {
+        return File(deploymentManifestFile.parentFile, "data_baseline_${gameId}.json")
+    }
+
+    private fun getDataBaselineRepository(gameId: String): DataBaselineRepository {
+        return DataBaselineRepository(getDataBaselineFile(gameId))
+    }
+
+    fun hasDataBaseline(gameId: String): Boolean {
+        return getDataBaselineRepository(gameId).exists()
+    }
+
+    fun rebuildDataBaseline(gameId: String): DataBaselineSnapshot {
+        val targetFiles = scanTargetDataFiles(gameId)
+        val config = getGameDeploymentConfig(gameId)
+
+        val targetDescription = when {
+            config != null && config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() ->
+                config.targetTreeUri ?: ""
+
+            config != null && config.realDeployEnabled && validateTargetDataPath(config.targetDataPath) ->
+                config.targetDataPath
+
+            else ->
+                deployRootDir.absolutePath
+        }
+
+        val manifestRepository = DeploymentManifestRepository(
+            getEffectiveDeploymentManifestFile(gameId)
+        )
+
+        val deployedPaths = manifestRepository.load()
+            .map { it.normalizedPath }
+            .toSet()
+
+        val baselineFiles = targetFiles
+            .filterNot { it.normalizedPath in deployedPaths }
+            .filterNot { shouldIgnoreOverwritePath(it.normalizedPath) }
+            .map {
+                DataBaselineFileRecord(
+                    normalizedPath = it.normalizedPath,
+                    sizeBytes = it.sizeBytes,
+                    modifiedEpochMillis = it.modifiedEpochMillis
+                )
+            }
+            .sortedBy { it.normalizedPath }
+
+        val snapshot = DataBaselineSnapshot(
+            gameId = gameId,
+            createdAtEpochMillis = System.currentTimeMillis(),
+            targetDescription = targetDescription,
+            files = baselineFiles
+        )
+
+        getDataBaselineRepository(gameId).save(snapshot)
+        return snapshot
+    }
+
+    private fun scanTargetDataFiles(gameId: String): List<com.shonkware.droidmodloader.engine.overwrite.TargetDataFileEntry> {
+        val config = getGameDeploymentConfig(gameId)
+
+        return when {
+            config != null && config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() -> {
+                overwriteScanner.scanTreeUriDataFolder(config.targetTreeUri)
+            }
+
+            config != null && config.realDeployEnabled && validateTargetDataPath(config.targetDataPath) -> {
+                overwriteScanner.scanLocalDataFolder(File(config.targetDataPath))
+            }
+
+            else -> {
+                overwriteScanner.scanLocalDataFolder(deployRootDir)
+            }
+        }
+    }
+
+    private fun hasBaselineFileChanged(
+        baseline: DataBaselineFileRecord,
+        current: com.shonkware.droidmodloader.engine.overwrite.TargetDataFileEntry
+    ): Boolean {
+        if (baseline.sizeBytes != null && current.sizeBytes != null && baseline.sizeBytes != current.sizeBytes) {
+            return true
+        }
+
+        // SAF lastModified values are not always reliable, so only treat modified time as a signal
+        // when both values are present and the size also changed elsewhere.
+        return false
+    }
+
+    private fun shouldIgnoreOverwritePath(normalizedPath: String): Boolean {
+        val lower = normalizedPath.lowercase()
+
+        return lower == "plugins.txt" ||
+                lower == "loadorder.txt" ||
+                lower.endsWith(".bak") ||
+                lower.endsWith(".tmp") ||
+                lower.endsWith(".old")
+    }
+
+    private fun getOverwriteReason(normalizedPath: String): String {
+        val lower = normalizedPath.lowercase()
+
+        return when {
+            lower.endsWith(".log") ->
+                "Generated log file"
+
+            lower.startsWith("skse/plugins/") ||
+                    lower.startsWith("skse/plugins/") ||
+                    lower.startsWith("nvse/plugins/") ||
+                    lower.startsWith("obse/plugins/") ||
+                    lower.startsWith("fose/plugins/") ||
+                    lower.startsWith("f4se/plugins/") ->
+                "Script extender generated file"
+
+            lower.contains("cache") ->
+                "Possible generated cache file"
+
+            lower.endsWith(".ini") ->
+                "Generated or externally modified config file"
+
+            lower.endsWith(".esp") ||
+                    lower.endsWith(".esm") ||
+                    lower.endsWith(".esl") ->
+                "New plugin file found outside Droid Mod Loader deployment"
+
+            else ->
+                "File was created or changed after the Data baseline was indexed"
+        }
+    }
 }

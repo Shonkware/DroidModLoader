@@ -20,7 +20,8 @@ class OverwriteScanner(
 
                 TargetDataFileEntry(
                     normalizedPath = normalized,
-                    sizeBytes = file.length()
+                    sizeBytes = file.length(),
+                    modifiedEpochMillis = file.lastModified()
                 )
             }
             .toList()
@@ -66,7 +67,8 @@ class OverwriteScanner(
                 results.add(
                     TargetDataFileEntry(
                         normalizedPath = normalized,
-                        sizeBytes = child.length()
+                        sizeBytes = child.length(),
+                        modifiedEpochMillis = child.lastModified()
                     )
                 )
             }
