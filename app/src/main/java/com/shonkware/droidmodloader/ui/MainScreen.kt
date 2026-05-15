@@ -119,6 +119,7 @@ data class DashboardActions(
     val onCloseOverwriteFolder: () -> Unit,
 
 
+
 )
 
 @Composable
@@ -307,6 +308,8 @@ fun DroidModLoaderScreen(
             onMoveModDown = actions.onMoveModDown,
             onDeleteMod = actions.onDeleteMod,
             onViewModFiles = actions.onViewModFiles,
+            onApplyModOrder = actions.onApplyModOrder,
+            onOpenOverwriteFolder = actions.onOpenOverwriteFolder,
             onClose = actions.onCloseFullscreenPanel
         )
 
@@ -319,6 +322,7 @@ fun DroidModLoaderScreen(
             onTogglePlugin = actions.onTogglePlugin,
             onMovePluginUp = actions.onMovePluginUp,
             onMovePluginDown = actions.onMovePluginDown,
+            onApplyPluginOrder = actions.onApplyPluginOrder,
             onClose = actions.onCloseFullscreenPanel
         )
 
@@ -359,7 +363,8 @@ fun DroidModLoaderScreen(
                 onMoveModDown = actions.onMoveModDown,
                 onDeleteMod = actions.onDeleteMod,
                 onViewModFiles = actions.onViewModFiles,
-                onOpenFullscreen = actions.onOpenModsFullscreen
+                onOpenFullscreen = actions.onOpenModsFullscreen,
+                onOpenOverwriteFolder = actions.onOpenOverwriteFolder
             )
             PluginsCard(
                 plugins = state.plugins,
