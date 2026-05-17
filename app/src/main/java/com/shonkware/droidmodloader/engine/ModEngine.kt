@@ -46,6 +46,8 @@ import com.shonkware.droidmodloader.engine.baseline.DataBaselineFileRecord
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineRepository
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineSnapshot
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteScanResult
+import com.shonkware.droidmodloader.engine.deploy.DeploymentTargetIdentity
+import java.security.MessageDigest
 
 data class UninstallResult(
     val removed: Boolean,
@@ -517,13 +519,10 @@ class ModEngine(
     }
 
     private fun getEffectiveDeploymentManifestFile(gameId: String): File {
-        val config = getGameDeploymentConfig(gameId)
-
-        return if (config != null) {
-            File(deploymentManifestFile.parentFile, "deployment_manifest_${config.gameId}.json")
-        } else {
-            deploymentManifestFile
-        }
+        return File(
+            deploymentManifestFile.parentFile,
+            buildTargetScopedFileName("deployment_manifest", gameId)
+        )
     }
 
     fun discoverPluginsFromCurrentMods(): List<PluginEntry> {
@@ -1003,7 +1002,10 @@ class ModEngine(
     }
 
     private fun getDataBaselineFile(gameId: String): File {
-        return File(deploymentManifestFile.parentFile, "data_baseline_${gameId}.json")
+        return File(
+            deploymentManifestFile.parentFile,
+            buildTargetScopedFileName("data_baseline", gameId)
+        )
     }
 
     private fun getDataBaselineRepository(gameId: String): DataBaselineRepository {
@@ -1131,4 +1133,72 @@ class ModEngine(
                 "File was created or changed after the Data baseline was indexed"
         }
     }
+    private fun getDeploymentTargetIdentity(gameId: String): DeploymentTargetIdentity {
+        val config = getGameDeploymentConfig(gameId)
+
+        return when {
+            config != null &&
+                    config.realDeployEnabled &&
+                    !config.targetTreeUri.isNullOrBlank() -> {
+                DeploymentTargetIdentity(
+                    gameId = gameId,
+                    mode = "tree_uri",
+                    target = config.targetTreeUri ?: ""
+                )
+            }
+
+            config != null &&
+                    config.realDeployEnabled &&
+                    validateTargetDataPath(config.targetDataPath) -> {
+                DeploymentTargetIdentity(
+                    gameId = gameId,
+                    mode = "real_path",
+                    target = config.targetDataPath
+                )
+            }
+
+            else -> {
+                DeploymentTargetIdentity(
+                    gameId = gameId,
+                    mode = "simulated",
+                    target = deployRootDir.absolutePath
+                )
+            }
+        }
+    }
+
+    private fun hashManifestKey(value: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+
+        return digest
+            .joinToString("") { "%02x".format(it) }
+            .take(16)
+    }
+
+    private fun buildTargetScopedFileName(
+        prefix: String,
+        gameId: String,
+        extension: String = "json"
+    ): String {
+        val identity = getDeploymentTargetIdentity(gameId)
+        val hash = hashManifestKey(identity.stableKey())
+
+        return "${prefix}_${identity.gameId}_${identity.mode}_$hash.$extension"
+    }
+
+    fun getDeploymentTargetDebugSummary(gameId: String): String {
+        val identity = getDeploymentTargetIdentity(gameId)
+        val manifestName = buildTargetScopedFileName("deployment_manifest", gameId)
+        val baselineName = buildTargetScopedFileName("data_baseline", gameId)
+
+        return buildString {
+            appendLine("Deployment target identity:")
+            appendLine(identity.displaySummary())
+            appendLine("Manifest file: $manifestName")
+            appendLine("Baseline file: $baselineName")
+        }
+    }
+
+
 }

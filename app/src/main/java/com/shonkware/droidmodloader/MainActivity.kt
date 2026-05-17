@@ -30,7 +30,8 @@ import com.shonkware.droidmodloader.ui.SecondScreenController
 import java.io.File
 import com.shonkware.droidmodloader.ui.FullscreenPanel
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
-
+import android.os.Looper
+import java.util.concurrent.CountDownLatch
 
 class MainActivity : ComponentActivity() {
 
@@ -147,8 +148,6 @@ class MainActivity : ComponentActivity() {
             appendError("Failed to persist folder permission: ${e.message}", e)
         }
     }
-
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -399,6 +398,7 @@ class MainActivity : ComponentActivity() {
     private fun initializeComposeUi() {
         runInBackground {
             loadSetupState()
+            migrateLegacyGlobalStateIfNeeded()
             refreshGameOptions()
             loadSelectedGameConfigIntoUi()
             migratePrioritySpacingIfNeeded()
@@ -409,7 +409,6 @@ class MainActivity : ComponentActivity() {
             if (engine != null) {
                 syncPluginsFromCurrentState(engine)
             }
-
             refreshDashboard()
         }
 
@@ -449,6 +448,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
     private fun createModEngineForWorkflows(): ModEngine? {
         val externalBaseDir = getExternalFilesDir(null)
         if (externalBaseDir == null) {
@@ -456,26 +456,29 @@ class MainActivity : ComponentActivity() {
             return null
         }
 
-        val internalBaseDir = filesDir
+        val profileInternalDir = getProfileInternalDir()
+        val profileStateDir = getProfileStateDir(externalBaseDir)
 
-        val tempDir = File(internalBaseDir, "temp")
-        val modsDir = File(internalBaseDir, "mods")
-        val stagingDir = File(internalBaseDir, "staging")
-        val stateDir = File(externalBaseDir, "state")
-        val stateFile = File(stateDir, "installed_mods.json")
+        val tempDir = File(profileInternalDir, "temp")
+        val modsDir = File(profileInternalDir, "mods")
+        val stagingDir = File(profileInternalDir, "staging")
 
-        val deployDir = File(externalBaseDir, "deploy_target/Skyrim/Data")
-        val deploymentManifestFile = File(externalBaseDir, "state/deployment_manifest.json")
-        val gameConfigFile = File(externalBaseDir, "state/game_deployment_configs.json")
-        val pluginListFile = File(externalBaseDir, "state/plugins.json")
-        val pluginsTxtFile = File(externalBaseDir, "state/plugins.txt")
-        val loadorderTxtFile = File(externalBaseDir, "state/loadorder.txt")
+        val stateFile = File(profileStateDir, "installed_mods.json")
+        val pluginListFile = File(profileStateDir, "plugins.json")
+        val pluginsTxtFile = File(profileStateDir, "plugins.txt")
+        val loadorderTxtFile = File(profileStateDir, "loadorder.txt")
+        val deploymentManifestFile = File(profileStateDir, "deployment_manifest.json")
+        val gameConfigFile = File(profileStateDir, "game_deployment_configs.json")
 
+        val deployDir = File(
+            externalBaseDir,
+            "deploy_target/profiles/${getActiveProfileStorageKey()}/$selectedGameId/Data"
+        )
 
         tempDir.mkdirs()
         modsDir.mkdirs()
         stagingDir.mkdirs()
-        stateDir.mkdirs()
+        profileStateDir.mkdirs()
         deployDir.mkdirs()
 
         return ModEngine(
@@ -492,6 +495,27 @@ class MainActivity : ComponentActivity() {
             loadorderTxtFile = loadorderTxtFile
         )
     }
+    private fun sanitizeStorageName(value: String): String {
+        return value
+            .replace(Regex("""[^A-Za-z0-9._-]+"""), "_")
+            .trim('_')
+            .ifBlank { "default" }
+    }
+    private fun getActiveProfileStorageKey(): String {
+        val profileId = activeProfileId
+
+        return if (!profileId.isNullOrBlank()) {
+            sanitizeStorageName(profileId)
+        } else {
+            sanitizeStorageName("unassigned_$selectedGameId")
+        }
+    }
+    private fun getProfileInternalDir(): File {
+        return File(filesDir, "profiles/${getActiveProfileStorageKey()}")
+    }
+    private fun getProfileStateDir(externalBaseDir: File): File {
+        return File(externalBaseDir, "state/profiles/${getActiveProfileStorageKey()}")
+    }
     private fun copyUriToAppFile(uri: Uri, destinationFile: File) {
         contentResolver.openInputStream(uri).use { inputStream ->
             if (inputStream == null) {
@@ -505,6 +529,150 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    private fun migrateLegacyGlobalStateIfNeeded() {
+        val externalBaseDir = getExternalFilesDir(null)
+        if (externalBaseDir == null) {
+            appendError("Cannot migrate legacy state: external files directory is null.")
+            return
+        }
+
+        val currentProfileId = activeProfileId
+        if (currentProfileId.isNullOrBlank()) {
+            appendLog("Skipping legacy migration: no active profile.")
+            return
+        }
+
+        val stateDir = File(externalBaseDir, "state")
+        val migrationMarker = File(stateDir, "profile_storage_migration_v2.json")
+
+        if (migrationMarker.exists()) {
+            appendLog("Legacy profile storage migration already completed.")
+            return
+        }
+
+        val legacyModsDir = File(filesDir, "mods")
+        val legacyStateFile = File(stateDir, "installed_mods.json")
+        val legacyPluginListFile = File(stateDir, "plugins.json")
+        val legacyPluginsTxtFile = File(stateDir, "plugins.txt")
+        val legacyLoadorderTxtFile = File(stateDir, "loadorder.txt")
+        val legacyGameConfigFile = File(stateDir, "game_deployment_configs.json")
+
+        val hasLegacyState =
+            legacyModsDir.exists() ||
+                    legacyStateFile.exists() ||
+                    legacyPluginListFile.exists() ||
+                    legacyPluginsTxtFile.exists() ||
+                    legacyLoadorderTxtFile.exists() ||
+                    legacyGameConfigFile.exists()
+
+        if (!hasLegacyState) {
+            writeLegacyMigrationMarker(
+                markerFile = migrationMarker,
+                profileId = currentProfileId,
+                status = "no_legacy_state_found"
+            )
+            appendLog("No legacy global mod/plugin state found to migrate.")
+            return
+        }
+
+        val profileInternalDir = getProfileInternalDir()
+        val profileModsDir = File(profileInternalDir, "mods")
+        val profileStateDir = getProfileStateDir(externalBaseDir)
+
+        val profileAlreadyHasState =
+            File(profileStateDir, "installed_mods.json").exists() ||
+                    File(profileStateDir, "plugins.json").exists() ||
+                    (profileModsDir.exists() && profileModsDir.listFiles()?.isNotEmpty() == true)
+
+        if (profileAlreadyHasState) {
+            writeLegacyMigrationMarker(
+                markerFile = migrationMarker,
+                profileId = currentProfileId,
+                status = "skipped_profile_already_has_state"
+            )
+            appendLog("Skipped legacy migration because active profile already has profile-scoped state.")
+            return
+        }
+
+        try {
+            profileInternalDir.mkdirs()
+            profileModsDir.mkdirs()
+            profileStateDir.mkdirs()
+
+            if (legacyModsDir.exists()) {
+                legacyModsDir.copyRecursively(
+                    target = profileModsDir,
+                    overwrite = false
+                )
+                appendLog("Copied legacy mods folder into active profile.")
+            }
+
+            copyLegacyFileIfExists(
+                source = legacyStateFile,
+                destination = File(profileStateDir, "installed_mods.json")
+            )
+
+            copyLegacyFileIfExists(
+                source = legacyPluginListFile,
+                destination = File(profileStateDir, "plugins.json")
+            )
+
+            copyLegacyFileIfExists(
+                source = legacyPluginsTxtFile,
+                destination = File(profileStateDir, "plugins.txt")
+            )
+
+            copyLegacyFileIfExists(
+                source = legacyLoadorderTxtFile,
+                destination = File(profileStateDir, "loadorder.txt")
+            )
+
+            copyLegacyFileIfExists(
+                source = legacyGameConfigFile,
+                destination = File(profileStateDir, "game_deployment_configs.json")
+            )
+
+            writeLegacyMigrationMarker(
+                markerFile = migrationMarker,
+                profileId = currentProfileId,
+                status = "migrated_to_active_profile"
+            )
+
+            appendLog("Migrated legacy global mod/plugin state into active profile: $currentProfileId")
+            updateLastOperationStatus("Legacy mod state migrated into active profile.")
+        } catch (e: Exception) {
+            appendError("Legacy profile migration failed: ${e.message}", e)
+        }
+    }
+    private fun copyLegacyFileIfExists(source: File, destination: File) {
+        if (!source.exists()) return
+
+        destination.parentFile?.mkdirs()
+
+        if (!destination.exists()) {
+            source.copyTo(destination, overwrite = false)
+            appendLog("Migrated legacy file: ${source.name}")
+        }
+    }
+    private fun writeLegacyMigrationMarker(
+        markerFile: File,
+        profileId: String,
+        status: String
+    ) {
+        markerFile.parentFile?.mkdirs()
+
+        markerFile.writeText(
+            """
+        {
+          "schemaVersion": 1,
+          "profileId": "$profileId",
+          "status": "$status",
+          "createdAtEpochMillis": ${System.currentTimeMillis()}
+        }
+        """.trimIndent()
+        )
+    }
+
     private fun handleImportedArchive(uri: Uri) {
         if (operationInProgress) {
             appendLog("Ignoring import request: operation already in progress.")
@@ -759,52 +927,16 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun savePickedFolderToSelectedGameConfig(treeUri: String) {
-        val engine = createModEngineForWorkflows() ?: return
-
-        val existingConfigs = engine.loadGameDeploymentConfigs().toMutableList()
-        val index = existingConfigs.indexOfFirst { it.gameId == selectedGameId }
-
-        val displayName = when (selectedGameId) {
-            "skyrim_le" -> "Skyrim Legendary Edition"
-            "fallout_nv" -> "Fallout New Vegas"
-            else -> selectedGameId
+        runOnUiThreadBlocking {
+            selectedTreeUriText = treeUri
+            realDeployEnabledState = true
         }
 
-        if (index == -1) {
-            val newConfig = GameDeploymentConfig(
-                gameId = selectedGameId,
-                displayName = displayName,
-                targetDataPath = targetPathText.trim(),
-                realDeployEnabled = realDeployEnabledState,
-                targetTreeUri = treeUri
-            )
-            existingConfigs.add(newConfig)
-            engine.saveGameDeploymentConfigs(existingConfigs)
-
-            runOnUiThread {
-                selectedTreeUriText = treeUri
-            }
-
-            appendLog("Created config and saved picked folder URI for $selectedGameId")
-            return
-        }
-
-        val oldConfig = existingConfigs[index]
-        val updatedConfig = oldConfig.copy(
-            targetDataPath = targetPathText.trim(),
-            realDeployEnabled = realDeployEnabledState,
-            targetTreeUri = treeUri
-        )
-        existingConfigs[index] = updatedConfig
-
-        engine.saveGameDeploymentConfigs(existingConfigs)
+        saveSelectedGameConfigFromUi()
         saveActiveProfileFromDashboard()
+
         ensureDataBaselineIfMissing("target folder selected")
         refreshDashboard()
-
-        runOnUiThread {
-            selectedTreeUriText = treeUri
-        }
 
         appendLog("Saved picked folder URI for $selectedGameId")
     }
@@ -960,14 +1092,17 @@ class MainActivity : ComponentActivity() {
         }
 
         beginOperation("Deploying mods...")
-        val engine = createModEngineForWorkflows() ?: return
 
         try {
+            saveActiveProfileFromDashboard()
             saveSelectedGameConfigFromUi()
+
+            val engine = createModEngineForWorkflows() ?: return
 
             val config = engine.getGameDeploymentConfig(selectedGameId)
             appendLog("Selected game: $selectedGameId")
             appendLog("Active config: $config")
+            appendLog(engine.getDeploymentTargetDebugSummary(selectedGameId))
 
             val result = engine.deployForGame(selectedGameId)
 
@@ -984,7 +1119,10 @@ class MainActivity : ComponentActivity() {
             val effectiveTarget = when {
                 usingTreeUri -> config?.targetTreeUri ?: "none"
                 usingRealPath -> config?.targetDataPath ?: "none"
-                else -> File(getExternalFilesDir(null), "deploy_target/Skyrim/Data").absolutePath
+                else -> File(
+                    getExternalFilesDir(null),
+                    "deploy_target/profiles/${getActiveProfileStorageKey()}/$selectedGameId/Data"
+                ).absolutePath
             }
 
             appendLog("Deploy mode: $effectiveMode")
@@ -994,6 +1132,7 @@ class MainActivity : ComponentActivity() {
             appendLog("Updates: ${result.updateCount}")
             appendLog("Final deployed file count: ${result.finalRecordCount}")
             appendLog("RESULT: PASS")
+
             finishOperation("Deploy succeeded ($effectiveMode).")
         } catch (e: Exception) {
             appendError("Deploy workflow failed: ${e.message}", e)
@@ -1124,20 +1263,16 @@ class MainActivity : ComponentActivity() {
 
         val existingConfigs = engine.loadGameDeploymentConfigs().toMutableList()
 
-        val displayName = when (selectedGameId) {
-            "skyrim_le" -> "Skyrim Legendary Edition"
-            "fallout_nv" -> "Fallout New Vegas"
-            else -> selectedGameId
-        }
-
-        val oldConfig = existingConfigs.firstOrNull { it.gameId == selectedGameId }
+        val selectedTreeUri = selectedTreeUriText
+            .trim()
+            .takeIf { it.isNotBlank() && it != "No folder selected" }
 
         val updatedConfig = GameDeploymentConfig(
             gameId = selectedGameId,
-            displayName = displayName,
+            displayName = getGameDisplayName(selectedGameId),
             targetDataPath = targetPathText.trim(),
             realDeployEnabled = realDeployEnabledState,
-            targetTreeUri = oldConfig?.targetTreeUri
+            targetTreeUri = selectedTreeUri
         )
 
         val index = existingConfigs.indexOfFirst { it.gameId == selectedGameId }
@@ -1232,13 +1367,29 @@ class MainActivity : ComponentActivity() {
 
     private fun loadSetupState() {
         val repo = createProfileRepository() ?: return
-        val state = repo.loadSetupState()
-        val profiles = repo.loadProfiles()
-        val activeProfile = profiles.firstOrNull { it.profileId == state.activeProfileId }
 
-        runOnUiThread {
-            setupComplete = state.setupComplete
-            activeProfileId = state.activeProfileId
+        val loadedState = repo.loadSetupState()
+        val profiles = repo.loadProfiles()
+
+        var resolvedState = loadedState
+        var activeProfile = profiles.firstOrNull { it.profileId == loadedState.activeProfileId }
+
+        if (activeProfile == null && profiles.isNotEmpty()) {
+            val fallback = profiles.first()
+            activeProfile = fallback
+
+            resolvedState = AppSetupState(
+                setupComplete = true,
+                activeProfileId = fallback.profileId
+            )
+
+            repo.saveSetupState(resolvedState)
+            appendLog("Recovered missing active profile using: ${fallback.profileName}")
+        }
+
+        runOnUiThreadBlocking {
+            setupComplete = resolvedState.setupComplete
+            activeProfileId = resolvedState.activeProfileId
             profileOptions = profiles
 
             if (activeProfile != null) {
@@ -1247,29 +1398,16 @@ class MainActivity : ComponentActivity() {
                 targetPathText = activeProfile.targetDataPath
                 selectedTreeUriText = activeProfile.targetTreeUri ?: "No folder selected"
                 realDeployEnabledState = activeProfile.realDeployEnabled
-            } else if (profiles.isNotEmpty()) {
-                val fallback = profiles.first()
-                activeProfileId = fallback.profileId
-                activeProfileName = fallback.profileName
-                selectedGameId = fallback.gameId
-                targetPathText = fallback.targetDataPath
-                selectedTreeUriText = fallback.targetTreeUri ?: "No folder selected"
-                realDeployEnabledState = fallback.realDeployEnabled
+            } else {
+                activeProfileName = "No profile"
+                selectedGameId = "skyrim_le"
+                targetPathText = ""
+                selectedTreeUriText = "No folder selected"
+                realDeployEnabledState = false
             }
         }
 
-        if (state.activeProfileId == null && profiles.isNotEmpty()) {
-            val fallback = profiles.first()
-            repo.saveSetupState(
-                AppSetupState(
-                    setupComplete = true,
-                    activeProfileId = fallback.profileId
-                )
-            )
-            appendLog("Recovered missing active profile using: ${fallback.profileName}")
-        }
-
-        appendLog("Loaded setup state: $state")
+        appendLog("Loaded setup state: $resolvedState")
         appendLog("Loaded profile count: ${profiles.size}")
     }
 
@@ -1358,6 +1496,12 @@ class MainActivity : ComponentActivity() {
 
     private fun switchActiveProfile(profileId: String) {
         val repo = createProfileRepository() ?: return
+
+        // Save current profile before switching away.
+        if (!activeProfileId.isNullOrBlank()) {
+            saveActiveProfileFromDashboard()
+        }
+
         val profiles = repo.loadProfiles()
         val profile = profiles.firstOrNull { it.profileId == profileId }
 
@@ -1373,7 +1517,7 @@ class MainActivity : ComponentActivity() {
             )
         )
 
-        runOnUiThread {
+        runOnUiThreadBlocking {
             activeProfileId = profile.profileId
             activeProfileName = profile.profileName
             selectedGameId = profile.gameId
@@ -1383,8 +1527,15 @@ class MainActivity : ComponentActivity() {
         }
 
         saveSelectedGameConfigFromUi()
+
         appendLog("Switched active profile: $profile")
         updateLastOperationStatus("Switched profile: ${profile.profileName}")
+
+        val engine = createModEngineForWorkflows()
+        if (engine != null) {
+            syncPluginsFromCurrentState(engine)
+        }
+
         refreshDashboard()
     }
 
@@ -1687,6 +1838,8 @@ class MainActivity : ComponentActivity() {
         val engine = createModEngineForWorkflows() ?: return
 
         try {
+            appendLog(engine.getDeploymentTargetDebugSummary(selectedGameId))
+
             if (engine.hasDataBaseline(selectedGameId)) {
                 appendLog("Data baseline already exists for $selectedGameId.")
                 return
@@ -1716,6 +1869,25 @@ class MainActivity : ComponentActivity() {
             "fallout_3",
             "fallout_nv"
         )
+    }
+
+    private fun runOnUiThreadBlocking(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action()
+            return
+        }
+
+        val latch = CountDownLatch(1)
+
+        runOnUiThread {
+            try {
+                action()
+            } finally {
+                latch.countDown()
+            }
+        }
+
+        latch.await()
     }
 
 }

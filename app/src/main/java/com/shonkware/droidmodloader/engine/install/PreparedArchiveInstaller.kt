@@ -1,12 +1,8 @@
 package com.shonkware.droidmodloader.engine.install
 
 import android.util.Log
-import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import java.io.File
 import java.io.IOException
-import java.util.zip.ZipInputStream
-import com.github.junrar.Archive
-import com.github.junrar.rarfile.FileHeader
 
 class PreparedArchiveInstaller(
     private val tempDir: File,
@@ -14,11 +10,10 @@ class PreparedArchiveInstaller(
 ) {
     companion object {
         private const val TAG = "DroidModLoader"
-        private const val BUFFER_SIZE = 64 * 1024
-        private const val SEVEN_Z_MEMORY_LIMIT_KIB = 128 * 1024
     }
 
     private val layoutAnalyzer = InstallerLayoutAnalyzer()
+    private val archiveExtractor = ArchiveExtractor()
 
     fun prepare(archive: File): PreparedArchiveInstall {
         val sessionRoot = File(tempDir, "installer_sessions/${System.currentTimeMillis()}")
@@ -33,13 +28,16 @@ class PreparedArchiveInstaller(
                 throw IOException("Could not create installer raw folder: ${rawRoot.absolutePath}")
             }
 
-            unpackArchive(archive, rawRoot)
+            archiveExtractor.extractToRawFolder(archive, rawRoot)
 
             val contentRoot = layoutAnalyzer.resolveContentRoot(rawRoot)
             val modName = archive.nameWithoutExtension
             val plan = layoutAnalyzer.analyze(contentRoot, modName)
 
-            Log.d(TAG, "Prepared installer plan: type=${plan.installerType}, groups=${plan.groups.size}")
+            Log.d(
+                TAG,
+                "Prepared installer plan: type=${plan.installerType}, groups=${plan.groups.size}"
+            )
 
             return PreparedArchiveInstall(
                 archivePath = archive.absolutePath,
@@ -54,7 +52,10 @@ class PreparedArchiveInstaller(
             if (sessionRoot.exists()) {
                 sessionRoot.deleteRecursively()
             }
-            throw IOException("Failed to prepare archive install for ${archive.name}: ${t.message}", t)
+            throw IOException(
+                "Failed to prepare archive install for ${archive.name}: ${t.message}",
+                t
+            )
         }
     }
 
@@ -63,7 +64,8 @@ class PreparedArchiveInstaller(
         selection: InstallerSelection
     ): File {
         val finalDir = File(modsDir, prepared.modName)
-        val tempFinalDir = File(modsDir, "_installing_${prepared.modName}_${System.currentTimeMillis()}")
+        val tempFinalDir =
+            File(modsDir, "_installing_${prepared.modName}_${System.currentTimeMillis()}")
         val installRoot = File(prepared.installRootPath)
 
         if (!installRoot.exists() || !installRoot.isDirectory) {
@@ -113,7 +115,10 @@ class PreparedArchiveInstaller(
             if (tempFinalDir.exists()) {
                 tempFinalDir.deleteRecursively()
             }
-            throw IOException("Failed to finalize archive install for ${prepared.archiveName}: ${t.message}", t)
+            throw IOException(
+                "Failed to finalize archive install for ${prepared.archiveName}: ${t.message}",
+                t
+            )
         }
     }
 
@@ -186,146 +191,7 @@ class PreparedArchiveInstaller(
         source.copyTo(destination, overwrite = true)
     }
 
-    private fun unpackArchive(archive: File, outputDir: File) {
-        when (archive.extension.lowercase()) {
-            "zip" -> unpackZip(archive, outputDir)
-            "7z" -> unpackSevenZip(archive, outputDir)
-            "rar" -> unpackRar(archive, outputDir)
-            else -> throw IllegalArgumentException("Unsupported archive format: ${archive.name}")
-        }
-    }
-    private fun unpackZip(archive: File, outputDir: File) {
-        ZipInputStream(archive.inputStream().buffered()).use { zis ->
-            var entry = zis.nextEntry
-            val buffer = ByteArray(BUFFER_SIZE)
-
-            while (entry != null) {
-                val outFile = safeResolve(outputDir, entry.name)
-
-                if (entry.isDirectory) {
-                    outFile.mkdirs()
-                } else {
-                    outFile.parentFile?.mkdirs()
-                    outFile.outputStream().use { output ->
-                        while (true) {
-                            val read = zis.read(buffer)
-                            if (read < 0) break
-                            if (read == 0) continue
-                            output.write(buffer, 0, read)
-                        }
-                    }
-                }
-
-                zis.closeEntry()
-                entry = zis.nextEntry
-            }
-        }
-    }
-    private fun unpackSevenZip(archive: File, outputDir: File) {
-        SevenZFile.builder()
-            .setFile(archive)
-            .setUseDefaultNameForUnnamedEntries(true)
-            .setMaxMemoryLimitKiB(SEVEN_Z_MEMORY_LIMIT_KIB)
-            .get()
-            .use { sevenZ ->
-                var entry = sevenZ.nextEntry
-                val buffer = ByteArray(BUFFER_SIZE)
-
-                while (entry != null) {
-                    val entryName = entry.name ?: throw IOException("7z entry name was null")
-                    val outFile = safeResolve(outputDir, entryName)
-
-                    if (entry.isDirectory) {
-                        outFile.mkdirs()
-                    } else {
-                        outFile.parentFile?.mkdirs()
-                        outFile.outputStream().use { output ->
-                            var remaining = entry.size
-
-                            if (remaining >= 0) {
-                                while (remaining > 0) {
-                                    val read = sevenZ.read(
-                                        buffer,
-                                        0,
-                                        minOf(buffer.size.toLong(), remaining).toInt()
-                                    )
-
-                                    if (read < 0) {
-                                        throw IOException("Unexpected end of 7z stream for entry: $entryName")
-                                    }
-
-                                    if (read == 0) {
-                                        continue
-                                    }
-
-                                    output.write(buffer, 0, read)
-                                    remaining -= read
-                                }
-                            } else {
-                                while (true) {
-                                    val read = sevenZ.read(buffer)
-                                    if (read < 0) break
-                                    if (read == 0) continue
-                                    output.write(buffer, 0, read)
-                                }
-                            }
-                        }
-                    }
-
-                    entry = sevenZ.nextEntry
-                }
-            }
-    }
-    private fun unpackRar(archive: File, outputDir: File) {
-        try {
-            Archive(archive).use { rar ->
-                while (true) {
-                    val header: FileHeader = rar.nextFileHeader() ?: break
-
-                    val rawName = getRarEntryName(header)
-                    if (rawName.isBlank()) {
-                        continue
-                    }
-
-                    val normalizedName = rawName.replace("\\", "/")
-                    val outFile = safeResolve(outputDir, normalizedName)
-
-                    if (header.isDirectory) {
-                        outFile.mkdirs()
-                    } else {
-                        outFile.parentFile?.mkdirs()
-
-                        outFile.outputStream().use { output ->
-                            rar.extractFile(header, output)
-                        }
-                    }
-                }
-            }
-        } catch (t: Throwable) {
-            throw IOException(
-                "RAR extraction failed for ${archive.name}. This archive may be RAR5, encrypted, corrupt, or unsupported by the current extractor: ${t.message}",
-                t
-            )
-        }
-    }
-    private fun getRarEntryName(header: FileHeader): String {
-        val unicodeName = header.fileNameW
-        if (!unicodeName.isNullOrBlank()) {
-            return unicodeName
-        }
-
-        return header.fileNameString ?: ""
-    }
-
     private fun safeResolve(root: File, relativePath: String): File {
-        val outFile = File(root, relativePath)
-        val rootPath = root.canonicalPath + File.separator
-        val outPath = outFile.canonicalPath
-
-        if (!outPath.startsWith(rootPath)) {
-            throw IOException("Blocked suspicious archive path: $relativePath")
-        }
-
-        return outFile
+        return ArchiveEntryPath.safeResolve(root, relativePath)
     }
 }

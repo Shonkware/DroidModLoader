@@ -2,7 +2,19 @@ package com.shonkware.droidmodloader.engine.install
 
 import java.io.File
 
-interface ArchiveExtractor {
-    fun supports(archive: File): Boolean
-    fun extract(archive: File, tempDir: File, modsDir: File): File
+class ArchiveExtractor(
+    private val readerRegistry: ArchiveReaderRegistry = ArchiveReaderRegistry()
+) {
+    fun extractToRawFolder(
+        archive: File,
+        outputDir: File
+    ) {
+        val reader = readerRegistry.findReader(archive)
+        val writer = ArchiveEntryWriter(outputDir)
+
+        reader.read(
+            archive = archive,
+            writer = writer
+        )
+    }
 }
