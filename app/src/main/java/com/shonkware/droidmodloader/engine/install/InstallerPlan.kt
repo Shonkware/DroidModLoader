@@ -8,7 +8,9 @@ data class InstallerPlan(
     val warnings: List<String> = emptyList()
 ) {
     val requiresUserChoice: Boolean
-        get() = installerType == InstallerType.BAIN || installerType == InstallerType.FOMOD
+        get() = installerType == InstallerType.BAIN ||
+                installerType == InstallerType.FOMOD ||
+                installerType == InstallerType.MANUAL_DATA_FOLDER
 
     val defaultSelectedOptionIds: Set<String>
         get() = groups

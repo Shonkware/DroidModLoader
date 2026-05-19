@@ -8,8 +8,8 @@
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="modules">
           <set>
-            <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/app" />
+            <option value="/var/home/shonk/StudioProjects/DroidModLoader" />
+            <option value="/var/home/shonk/StudioProjects/DroidModLoader/app" />
           </set>
         </option>
       </GradleProjectSettings>

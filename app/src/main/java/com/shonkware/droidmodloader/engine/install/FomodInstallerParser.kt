@@ -3,12 +3,14 @@ package com.shonkware.droidmodloader.engine.install
 import org.w3c.dom.Element
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
+import java.io.IOException
 
 class FomodInstallerParser {
 
     fun parse(contentRoot: File, moduleConfigFile: File, modName: String): InstallerPlan {
         val warnings = mutableListOf<String>()
-        warnings.add("FOMOD installer detected. Basic XML installer support is enabled; complex conditions/scripts are not fully supported yet.")
+        warnings.add("FOMOD installer detected. Basic XML installer support is enabled; complex conditions/scripts are not fully supported yet." +
+                "Complex conditions, scripts, and advanced installer logic are not fully supported yet.")
 
         val document = DocumentBuilderFactory.newInstance()
             .newDocumentBuilder()
@@ -76,29 +78,10 @@ class FomodInstallerParser {
         }
 
         if (groups.isEmpty()) {
-            warnings.add("FOMOD parser found no supported options. Falling back to simple install root.")
-            return InstallerPlan(
-                installerType = InstallerType.SIMPLE,
-                displayName = modName,
-                rootPath = contentRoot.absolutePath,
-                groups = listOf(
-                    InstallerGroup(
-                        id = "fallback",
-                        name = "Fallback Install",
-                        type = InstallerGroupType.SELECT_ANY,
-                        options = listOf(
-                            InstallerOption(
-                                id = "fallback_all",
-                                name = "Install detected files",
-                                sourcePath = ".",
-                                destinationPath = "",
-                                required = true,
-                                selectedByDefault = true
-                            )
-                        )
-                    )
-                ),
-                warnings = warnings
+            throw IOException(
+                "FOMOD installer detected for $modName, but Droid Mod Loader could not find any supported file or folder mappings. " +
+                        "This FOMOD may use installer conditions, scripts, or module logic that is not supported yet. " +
+                        "No files were installed."
             )
         }
 

@@ -409,13 +409,17 @@ class TreeUriDeploymentManager(
         return currentDir
     }
 
+    private fun childLookupKey(name: String): String {
+        return name.lowercase()
+    }
+
     private fun getCachedChild(
         parentPath: String,
         parentDir: DocumentFile,
         childName: String
     ): DocumentFile? {
         val children = getCachedChildren(parentPath, parentDir)
-        return children[childName]
+        return children[childLookupKey(childName)]
     }
 
     private fun getCachedChildren(
@@ -427,14 +431,16 @@ class TreeUriDeploymentManager(
             return cached
         }
 
-        val loaded = parentDir
-            .listFiles()
-            .mapNotNull { child ->
-                val name = child.name ?: return@mapNotNull null
-                name to child
+        val loaded = mutableMapOf<String, DocumentFile>()
+
+        parentDir.listFiles().forEach { child ->
+            val name = child.name ?: return@forEach
+            val key = childLookupKey(name)
+
+            if (!loaded.containsKey(key)) {
+                loaded[key] = child
             }
-            .toMap()
-            .toMutableMap()
+        }
 
         childCache[parentPath] = loaded
         return loaded
@@ -447,7 +453,7 @@ class TreeUriDeploymentManager(
     ) {
         val children = childCache[parentPath]
         if (children != null) {
-            children[childName] = child
+            children[childLookupKey(childName)] = child
         }
     }
 
@@ -455,7 +461,7 @@ class TreeUriDeploymentManager(
         parentPath: String,
         childName: String
     ) {
-        childCache[parentPath]?.remove(childName)
+        childCache[parentPath]?.remove(childLookupKey(childName))
     }
 
     private fun getParentPath(normalizedPath: String): String {
@@ -496,21 +502,7 @@ class TreeUriDeploymentManager(
     }
 
     private fun guessMimeType(fileName: String): String {
-        val lower = fileName.lowercase()
-
-        return when {
-            lower.endsWith(".txt") ||
-                    lower.endsWith(".ini") ||
-                    lower.endsWith(".cfg") ||
-                    lower.endsWith(".json") ||
-                    lower.endsWith(".xml") -> "text/plain"
-
-            lower.endsWith(".dds") -> "image/vnd.ms-dds"
-            lower.endsWith(".png") -> "image/png"
-            lower.endsWith(".jpg") || lower.endsWith(".jpeg") -> "image/jpeg"
-
-            else -> "application/octet-stream"
-        }
+        return "application/octet-stream"
     }
 
     private fun FileRecord.toDeploymentRecord(

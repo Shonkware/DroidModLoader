@@ -7,8 +7,14 @@ import java.io.IOException
 class SevenZipArchiveReader : ArchiveReader {
 
     companion object {
-        private const val BUFFER_SIZE = 64 * 1024
-        private const val SEVEN_Z_MEMORY_LIMIT_KIB = 128 * 1024
+        private const val BUFFER_SIZE = 256 * 1024
+
+        const val SAFE_MEMORY_LIMIT_MIB = 256
+        const val DEFAULT_MEMORY_LIMIT_MIB = 512
+        const val MAX_MEMORY_LIMIT_MIB = 1024
+
+        private const val KIB_PER_MIB = 1024
+        private const val SEVEN_Z_MEMORY_LIMIT_KIB = DEFAULT_MEMORY_LIMIT_MIB * KIB_PER_MIB
     }
 
     override fun supports(archive: File): Boolean {

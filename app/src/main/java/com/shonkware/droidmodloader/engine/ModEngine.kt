@@ -47,6 +47,8 @@ import com.shonkware.droidmodloader.engine.plugins.ManagedPluginScanner
 import com.shonkware.droidmodloader.engine.index.ModFileIndexRepository
 import com.shonkware.droidmodloader.engine.index.ModFileIndexService
 import com.shonkware.droidmodloader.engine.deploy.ScopedDeploymentResult
+import com.shonkware.droidmodloader.engine.model.DeploymentRecord
+import com.shonkware.droidmodloader.engine.install.ModDisplayNameNormalizer
 
 
 data class UninstallResult(
@@ -99,16 +101,22 @@ class ModEngine(
         priority: Int,
         enabled: Boolean = true
     ): Mod {
+        val record = installedModRecordRepository.loadRecord(modDir)
+        val displayName = record?.displayName?.takeIf { it.isNotBlank() }
+            ?: ModDisplayNameNormalizer.cleanDisplayName(
+                sourceArchiveName = record?.sourceArchiveName,
+                fallbackFolderName = modDir.name
+            )
+
         return Mod(
             id = modDir.name,
-            name = modDir.name,
+            name = displayName,
             installPath = modDir.absolutePath,
             enabled = enabled,
             priority = priority,
             modType = detectModType(modDir)
         )
     }
-
     fun scanMod(mod: Mod): List<ModFile> {
         val index = modFileIndexService.getOrBuildIndex(mod)
 
@@ -175,13 +183,10 @@ class ModEngine(
             ?: emptyList()
 
         return modDirs.mapIndexed { index, modDir ->
-            Mod(
-                id = modDir.name,
-                name = modDir.name,
-                installPath = modDir.absolutePath,
-                enabled = true,
+            buildModFromInstalledFolder(
+                modDir = modDir,
                 priority = index + 1,
-                modType = detectModType(modDir)
+                enabled = true
             )
         }
     }
@@ -338,10 +343,16 @@ class ModEngine(
     private fun writeInstalledModRecord(
         modDir: File,
         sourceType: String,
-        sourceArchiveName: String?) {
+        sourceArchiveName: String?
+    ) {
+        val displayName = ModDisplayNameNormalizer.cleanDisplayName(
+            sourceArchiveName = sourceArchiveName,
+            fallbackFolderName = modDir.name
+        )
+
         val record = InstalledModRecord(
             modId = modDir.name,
-            displayName = modDir.name,
+            displayName = displayName,
             installPath = modDir.absolutePath,
             sourceType = sourceType,
             sourceArchiveName = sourceArchiveName,
@@ -518,14 +529,14 @@ class ModEngine(
     }
 
     private fun deployRecordsToConfiguredTarget(
-        oldManifest: List<com.shonkware.droidmodloader.engine.model.DeploymentRecord>,
+        oldManifest: List<DeploymentRecord>,
         newWinningRecords: List<FileRecord>,
         realDeployEnabled: Boolean,
         targetTreeUri: String?,
         targetPath: String,
         fallbackRootDir: File,
         backupRootDir: File
-    ): Pair<List<com.shonkware.droidmodloader.engine.model.DeploymentRecord>, DeploymentResult> {
+    ): Pair<List<DeploymentRecord>, DeploymentResult> {
         return when {
             realDeployEnabled && !targetTreeUri.isNullOrBlank() -> {
                 val treeDeploymentManager = TreeUriDeploymentManager(
@@ -587,8 +598,11 @@ class ModEngine(
 
         val hash = hashManifestKey(identity.stableKey())
 
+        val baseDir = deploymentManifestFile.parentFile
+            ?: File(appContext.filesDir, "state")
+
         return File(
-            deploymentManifestFile.parentFile,
+            baseDir,
             "deployment_backups/${identity.gameId}_${identity.mode}_$hash/$scopeName"
         )
     }

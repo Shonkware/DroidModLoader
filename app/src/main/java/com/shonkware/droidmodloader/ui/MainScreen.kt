@@ -121,6 +121,7 @@ data class DashboardActions(
 
     val onOpenOverwriteFolder: () -> Unit,
     val onCloseOverwriteFolder: () -> Unit,
+    val onRepairV050Artifacts: () -> Unit = {}
 )
 
 @Composable
@@ -196,9 +197,10 @@ private fun MainDashboardScreen(
                 onShareLogs = actions.onShareLogs
             )
 
-            if (state.developerModeEnabled) {
-                DeveloperToolsCard()
-            }
+            DeveloperToolsCard(
+                operationInProgress = state.operationInProgress,
+                onRepairV050Artifacts = actions.onRepairV050Artifacts
+            )
         }
     }
 }

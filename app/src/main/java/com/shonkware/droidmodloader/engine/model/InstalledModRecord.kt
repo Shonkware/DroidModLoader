@@ -6,5 +6,12 @@ data class InstalledModRecord(
     val installPath: String,
     val sourceType: String,
     val sourceArchiveName: String?,
-    val installedAtEpochMillis: Long
+    val installedAtEpochMillis: Long,
+
+    val nexusGameDomain: String? = null,
+    val nexusModId: Long? = null,
+    val nexusFileId: Long? = null,
+    val nexusFileName: String? = null,
+    val version: String? = null,
+    val sourceUrl: String? = null
 )

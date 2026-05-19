@@ -3,5 +3,6 @@ package com.shonkware.droidmodloader.engine.install
 enum class InstallerType {
     SIMPLE,
     BAIN,
-    FOMOD
+    FOMOD,
+    MANUAL_DATA_FOLDER
 }
