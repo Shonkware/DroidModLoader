@@ -197,7 +197,7 @@ This community will serve as the main place for:
 
 ## Community Attribution
 
-Special thanks to the Deno and his Discord community that contributes testing, feedback, troubleshooting, and shared modding knowledge. Community input plays a major role in shaping the direction of this project.
+Special thanks to Deno and his Discord community that contributes testing, feedback, troubleshooting, and shared modding knowledge. Community input plays a major role in shaping the direction of this project.
 
 ---
 
