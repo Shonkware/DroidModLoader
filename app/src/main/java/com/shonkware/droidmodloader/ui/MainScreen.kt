@@ -16,7 +16,7 @@ import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
-import com.shonkware.droidmodloader.ui.FullscreenPanel
+
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 
 data class DashboardUiState(
@@ -148,6 +148,10 @@ private fun MainDashboardScreen(
 
             StatusCard(
                 activeProfileName = state.activeProfileName,
+                selectedGameId = state.selectedGameId,
+                selectedTreeUriText = state.selectedTreeUriText,
+                selectedRootTreeUriText = state.selectedRootTreeUriText,
+                realDeployEnabled = state.realDeployEnabled,
                 lastOperationStatus = state.lastOperationStatus,
                 summaryText = state.summaryText,
                 onOpenProfileDialog = actions.onOpenProfileDialog

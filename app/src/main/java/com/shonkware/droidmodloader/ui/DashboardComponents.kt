@@ -80,10 +80,22 @@ fun HeaderCard(
 @Composable
 fun StatusCard(
     activeProfileName: String,
+    selectedGameId: String,
+    selectedTreeUriText: String,
+    selectedRootTreeUriText: String,
+    realDeployEnabled: Boolean,
     lastOperationStatus: String,
     summaryText: String,
     onOpenProfileDialog: () -> Unit
 ) {
+    val dataTargetReady =
+        selectedTreeUriText.isNotBlank() &&
+                selectedTreeUriText != "No folder selected"
+
+    val rootTargetReady =
+        selectedRootTreeUriText.isNotBlank() &&
+                selectedRootTreeUriText != "No root folder selected"
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -94,14 +106,55 @@ fun StatusCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Profile: $activeProfileName",
-                    fontWeight = FontWeight.Bold
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Profile: $activeProfileName",
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "Game: $selectedGameId",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
 
                 Button(onClick = onOpenProfileDialog) {
                     Text("Manage")
                 }
+            }
+
+            Text(
+                text = if (realDeployEnabled) {
+                    "Deploy mode: Real target folders"
+                } else {
+                    "Deploy mode: Test output folder"
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                text = if (dataTargetReady) {
+                    "Data target: selected"
+                } else {
+                    "Data target: not selected"
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                text = if (rootTargetReady) {
+                    "Game Root target: selected"
+                } else {
+                    "Game Root target: not selected"
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            if (!rootTargetReady) {
+                Text(
+                    text = "Pick Game Root if you use SKSE, NVSE, ENB, DLL loaders, or root EXE files.",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             Text("Status: $lastOperationStatus")
@@ -116,14 +169,19 @@ fun StatusCard(
 @Composable
 fun QuickStartCard() {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Text("Quick Start", fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Text("1. Pick target folder")
-            Text("2. Import archive")
-            Text("3. Deploy mods")
-            Text("4. Write plugin files if needed")
-            Text("5. Share logs if something fails")
+
+            Text("1. Pick the game Data folder.")
+            Text("2. Pick Game Root too if the mod uses SKSE, NVSE, ENB, DLLs, or root EXE files.")
+            Text("3. Import a mod archive.")
+            Text("4. Check the mod list and plugin list.")
+            Text("5. Deploy.")
+            Text("6. Write plugin files if needed.")
+            Text("7. Share logs if something looks wrong.")
         }
     }
 }
@@ -147,7 +205,7 @@ fun MainActionsCard(
                 onClick = onImportArchive,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Import Archive")
+                Text("Import Mod Archive")
             }
 
             Button(
@@ -565,10 +623,10 @@ fun DeploymentSettingsCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Deployment & Settings", fontWeight = FontWeight.Bold)
+            Text("Deploy Targets", fontWeight = FontWeight.Bold)
 
             Text(
-                text = "Selected folder: $selectedTreeUriText",
+                text = "Data folder: $selectedTreeUriText",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -580,11 +638,11 @@ fun DeploymentSettingsCard(
 
                 Spacer(Modifier.width(8.dp))
 
-                Text("Write to Real Target Folder")
+                Text("Deploy into selected game folders")
             }
 
             Text(
-                text = "Pick the Data folder of your installed game.",
+                text = "Pick the game's Data folder. Most mod files deploy here.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -592,15 +650,15 @@ fun DeploymentSettingsCard(
                 onClick = onPickTargetFolder,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Pick Target Folder")
+                Text("Pick Data Folder")
             }
             Text(
-                text = "Game root folder: $selectedRootTreeUriText",
+                text = "Game Root folder: $selectedRootTreeUriText",
                 style = MaterialTheme.typography.bodySmall
             )
 
             Text(
-                text = "Advanced: pick the main game folder, not Data. Needed for SKSE/NVSE/OBSE/FOSE/F4SE loaders, DLLs, ENB files, and other root-level files.",
+                text = "Pick the main game folder, not Data. Needed for script extenders, DLL loaders, ENB files, and root EXE files.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -691,6 +749,11 @@ fun DeveloperToolsCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("Developer Tools", fontWeight = FontWeight.Bold)
+
+            Text(
+                text = "Advanced tools for testing and repair. Most users should not need these every day.",
+                style = MaterialTheme.typography.bodySmall
+            )
 
             Button(
                 enabled = !operationInProgress,
