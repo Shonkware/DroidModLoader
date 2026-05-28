@@ -1313,6 +1313,12 @@ class MainActivity : ComponentActivity() {
             appendLog("  Protected conflicts: ${result.dataResult.protectedConflictCount + result.rootResult.protectedConflictCount}")
             appendLog("  Final file count: ${result.finalRecordCount}")
 
+            appendLog("----- Last Deploy Journal -----")
+            engine.getDeploymentJournalDebugSummary(selectedGameId).lineSequence().forEach { line ->
+                appendLog(line)
+            }
+            appendLog("----- Last Deploy Journal End -----")
+
             appendLog("RESULT: PASS")
 
             finishOperation("Deploy succeeded ($effectiveMode).")

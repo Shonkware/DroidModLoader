@@ -58,6 +58,11 @@ import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightChecker
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightException
+import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalPlanSummary
+import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalRecord
+import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalRepository
+import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalResultSummary
+import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalStatus
 
 data class UninstallResult(
     val removed: Boolean,
@@ -470,72 +475,116 @@ class ModEngine(
         return target.exists() || target.parentFile?.exists() == true
     }
     fun deployForGame(gameId: String): ScopedDeploymentResult {
-
-        requireDeploymentPreflightForGame(gameId)
+        val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val dataManifestRepository = DeploymentManifestRepository(
-            getEffectiveDeploymentManifestFile(gameId)
+        val preflight = DeploymentPreflightChecker(appContext).check(
+            config = config,
+            plan = plan
         )
 
-        val oldDataManifest = dataManifestRepository.load()
-        val dataWinningRecords = getCurrentDataWinningRecords()
+        if (!preflight.canDeploy) {
+            throw DeploymentPreflightException(preflight)
+        }
 
-        val (newDataManifest, dataResult) = deployRecordsToConfiguredTarget(
-            oldManifest = oldDataManifest,
-            newWinningRecords = dataWinningRecords,
-            realDeployEnabled = config?.realDeployEnabled == true,
-            targetTreeUri = config?.targetTreeUri,
-            targetPath = config?.targetDataPath ?: "",
-            fallbackRootDir = deployRootDir,
-            backupRootDir = getDeploymentBackupDir(
-                gameId = gameId,
-                scopeName = "data",
-                rootTarget = false
+        val journalRepository = DeploymentJournalRepository(
+            getDeploymentJournalFile(gameId)
+        )
+
+        val journalRecord = createStartedDeploymentJournal(
+            gameId = gameId,
+            plan = plan,
+            preflight = preflight
+        )
+
+        journalRepository.saveStarted(journalRecord)
+
+        try {
+            val dataManifestRepository = DeploymentManifestRepository(
+                getEffectiveDeploymentManifestFile(gameId)
             )
-        )
 
-        dataManifestRepository.save(newDataManifest)
+            val oldDataManifest = dataManifestRepository.load()
+            val dataWinningRecords = getCurrentDataWinningRecords()
 
-        val rootManifestRepository = DeploymentManifestRepository(
-            getEffectiveRootDeploymentManifestFile(gameId)
-        )
-
-        val oldRootManifest = rootManifestRepository.load()
-        val rootWinningRecords = getCurrentRootWinningRecords()
-
-        val canDeployRoot = canDeployGameRoot(config)
-
-        val rootResult = if (canDeployRoot && (rootWinningRecords.isNotEmpty() || oldRootManifest.isNotEmpty())) {
-            val (newRootManifest, result) = deployRecordsToConfiguredTarget(
-                oldManifest = oldRootManifest,
-                newWinningRecords = rootWinningRecords,
+            val (newDataManifest, dataResult) = deployRecordsToConfiguredTarget(
+                oldManifest = oldDataManifest,
+                newWinningRecords = dataWinningRecords,
                 realDeployEnabled = config?.realDeployEnabled == true,
-                targetTreeUri = config?.targetRootTreeUri,
-                targetPath = config?.targetRootPath ?: "",
-                fallbackRootDir = getSimulatedGameRootDir(),
+                targetTreeUri = config?.targetTreeUri,
+                targetPath = config?.targetDataPath ?: "",
+                fallbackRootDir = deployRootDir,
                 backupRootDir = getDeploymentBackupDir(
                     gameId = gameId,
-                    scopeName = "root",
-                    rootTarget = true
+                    scopeName = "data",
+                    rootTarget = false
                 )
             )
 
-            rootManifestRepository.save(newRootManifest)
-            result
-        } else {
-            DeploymentResult(
-                addCount = 0,
-                removeCount = 0,
-                updateCount = 0,
-                finalRecordCount = 0
-            )
-        }
+            dataManifestRepository.save(newDataManifest)
 
-        return ScopedDeploymentResult(
-            dataResult = dataResult,
-            rootResult = rootResult
-        )
+            val rootManifestRepository = DeploymentManifestRepository(
+                getEffectiveRootDeploymentManifestFile(gameId)
+            )
+
+            val oldRootManifest = rootManifestRepository.load()
+            val rootWinningRecords = getCurrentRootWinningRecords()
+
+            val canDeployRoot = canDeployGameRoot(config)
+
+            val rootResult = if (canDeployRoot && (rootWinningRecords.isNotEmpty() || oldRootManifest.isNotEmpty())) {
+                val (newRootManifest, result) = deployRecordsToConfiguredTarget(
+                    oldManifest = oldRootManifest,
+                    newWinningRecords = rootWinningRecords,
+                    realDeployEnabled = config?.realDeployEnabled == true,
+                    targetTreeUri = config?.targetRootTreeUri,
+                    targetPath = config?.targetRootPath ?: "",
+                    fallbackRootDir = getSimulatedGameRootDir(),
+                    backupRootDir = getDeploymentBackupDir(
+                        gameId = gameId,
+                        scopeName = "root",
+                        rootTarget = true
+                    )
+                )
+
+                rootManifestRepository.save(newRootManifest)
+                result
+            } else {
+                DeploymentResult(
+                    addCount = 0,
+                    removeCount = 0,
+                    updateCount = 0,
+                    finalRecordCount = 0
+                )
+            }
+
+            val scopedResult = ScopedDeploymentResult(
+                dataResult = dataResult,
+                rootResult = rootResult
+            )
+
+            journalRepository.markCompleted(
+                record = journalRecord,
+                resultSummary = DeploymentJournalResultSummary(
+                    addCount = scopedResult.addCount,
+                    updateCount = scopedResult.updateCount,
+                    removeCount = scopedResult.removeCount,
+                    backupCount = scopedResult.dataResult.backupCount + scopedResult.rootResult.backupCount,
+                    restoreCount = scopedResult.dataResult.restoreCount + scopedResult.rootResult.restoreCount,
+                    protectedConflictCount = scopedResult.dataResult.protectedConflictCount + scopedResult.rootResult.protectedConflictCount,
+                    finalRecordCount = scopedResult.finalRecordCount
+                )
+            )
+
+            return scopedResult
+        } catch (e: Exception) {
+            journalRepository.markFailed(
+                record = journalRecord,
+                message = e.message ?: e::class.java.name
+            )
+
+            throw e
+        }
     }
 
     private fun deployRecordsToConfiguredTarget(
@@ -1551,6 +1600,56 @@ class ModEngine(
         }
 
         return result
+    }
+
+    private fun getDeploymentJournalFile(gameId: String): File {
+        val stateDir = stateFile.parentFile ?: tempDir
+        return File(stateDir, "deployment_journal_${gameId}.json")
+    }
+
+    private fun getCurrentProfileIdForJournal(): String {
+        return stateFile.parentFile?.name ?: "unknown_profile"
+    }
+
+    fun getDeploymentJournalDebugSummary(gameId: String): String {
+        val repository = DeploymentJournalRepository(
+            getDeploymentJournalFile(gameId)
+        )
+
+        val record = repository.load()
+
+        return if (record == null) {
+            "No deploy journal found for $gameId."
+        } else {
+            record.toDebugSummary()
+        }
+    }
+
+    private fun createStartedDeploymentJournal(
+        gameId: String,
+        plan: ScopedDeploymentPlan,
+        preflight: DeploymentPreflightResult
+    ): DeploymentJournalRecord {
+        return DeploymentJournalRecord(
+            operationId = "${System.currentTimeMillis()}_$gameId",
+            gameId = gameId,
+            profileId = getCurrentProfileIdForJournal(),
+            status = DeploymentJournalStatus.STARTED,
+            startedAtEpochMillis = System.currentTimeMillis(),
+            completedAtEpochMillis = null,
+            planSummary = DeploymentJournalPlanSummary(
+                dataOperationCount = plan.dataPlan.operationCount,
+                rootOperationCount = plan.rootPlan.operationCount,
+                totalOperationCount = plan.totalOperationCount,
+                dataEstimatedCopyBytes = plan.dataPlan.estimatedBytesToCopy,
+                rootEstimatedCopyBytes = plan.rootPlan.estimatedBytesToCopy,
+                preflightCanDeploy = preflight.canDeploy,
+                preflightErrorCount = preflight.errorCount,
+                preflightWarningCount = preflight.warningCount
+            ),
+            resultSummary = null,
+            failureMessage = null
+        )
     }
 
 
