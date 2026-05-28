@@ -57,6 +57,7 @@ import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPlanScope
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightChecker
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightException
 
 data class UninstallResult(
     val removed: Boolean,
@@ -469,6 +470,8 @@ class ModEngine(
         return target.exists() || target.parentFile?.exists() == true
     }
     fun deployForGame(gameId: String): ScopedDeploymentResult {
+
+        requireDeploymentPreflightForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
         val dataManifestRepository = DeploymentManifestRepository(
@@ -1534,4 +1537,22 @@ class ModEngine(
             plan = plan
         )
     }
+    fun requireDeploymentPreflightForGame(gameId: String): DeploymentPreflightResult {
+        val plan = buildDeploymentPlanForGame(gameId)
+        val config = getGameDeploymentConfig(gameId)
+
+        val result = DeploymentPreflightChecker(appContext).check(
+            config = config,
+            plan = plan
+        )
+
+        if (!result.canDeploy) {
+            throw DeploymentPreflightException(result)
+        }
+
+        return result
+    }
+
+
+
 }

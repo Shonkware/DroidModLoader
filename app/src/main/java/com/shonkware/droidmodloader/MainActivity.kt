@@ -37,6 +37,7 @@ import android.os.Looper
 import java.util.concurrent.CountDownLatch
 import com.shonkware.droidmodloader.engine.install.InstallerGroupType
 import com.shonkware.droidmodloader.engine.repair.V050ArtifactRepairTool
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightException
 
 class MainActivity : ComponentActivity() {
 
@@ -1315,6 +1316,18 @@ class MainActivity : ComponentActivity() {
             appendLog("RESULT: PASS")
 
             finishOperation("Deploy succeeded ($effectiveMode).")
+        } catch (e: DeploymentPreflightException) {
+            appendError("Deploy blocked by preflight check.", e)
+
+            appendLog("----- Deploy Readiness Check Failed -----")
+            e.result.toDebugSummary().lineSequence().forEach { line ->
+                appendLog(line)
+            }
+            appendLog("----- Deploy Readiness Check Failed End -----")
+            appendLog("No files were changed.")
+            appendLog("RESULT: FAIL")
+
+            failOperation("Deploy blocked by readiness check.", e)
         } catch (e: Exception) {
             appendError("Deploy workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
