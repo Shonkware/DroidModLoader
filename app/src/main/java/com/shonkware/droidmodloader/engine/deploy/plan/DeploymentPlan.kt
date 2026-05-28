@@ -59,9 +59,9 @@ data class DeploymentPlan(
 
             val bytes = estimatedBytesToCopy
             if (bytes != null) {
-                appendLine("  Estimated bytes to copy: $bytes")
+                appendLine("  Estimated copy size: ${formatBytes(bytes)}")
             } else {
-                appendLine("  Estimated bytes to copy: unknown")
+                appendLine("  Estimated copy size: unknown")
             }
 
             val sample = operations
@@ -100,4 +100,17 @@ private fun DeploymentPlanScope.displayName(): String {
         DeploymentPlanScope.DATA -> "Data"
         DeploymentPlanScope.GAME_ROOT -> "Game Root"
     }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024L) return "$bytes B"
+
+    val kib = bytes / 1024.0
+    if (kib < 1024.0) return "%.1f KiB".format(kib)
+
+    val mib = kib / 1024.0
+    if (mib < 1024.0) return "%.1f MiB".format(mib)
+
+    val gib = mib / 1024.0
+    return "%.2f GiB".format(gib)
 }

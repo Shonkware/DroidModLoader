@@ -611,15 +611,58 @@ class ModEngine(
 
     fun buildDeploymentPlanDebugSummary(gameId: String): String {
         val plan = buildDeploymentPlanForGame(gameId)
+        val config = getGameDeploymentConfig(gameId)
+
         val preflight = DeploymentPreflightChecker(appContext).check(
-            config = getGameDeploymentConfig(gameId),
+            config = config,
             plan = plan
         )
 
         return buildString {
+            appendLine(buildDeploymentPlanContextSummary(gameId, config, plan))
+            appendLine()
             appendLine(plan.toDebugSummary())
             appendLine()
             appendLine(preflight.toDebugSummary())
+        }
+    }
+
+    private fun buildDeploymentPlanContextSummary(
+        gameId: String,
+        config: GameDeploymentConfig?,
+        plan: ScopedDeploymentPlan
+    ): String {
+        val realDeployEnabled = config?.realDeployEnabled == true
+
+        val dataTargetStatus = when {
+            config == null -> "no config"
+            !config.targetTreeUri.isNullOrBlank() -> "Tree URI selected"
+            config.targetDataPath.isNotBlank() -> "local path selected"
+            else -> "not selected"
+        }
+
+        val rootTargetStatus = when {
+            config == null -> "no config"
+            !config.targetRootTreeUri.isNullOrBlank() -> "Tree URI selected"
+            config.targetRootPath.isNotBlank() -> "local path selected"
+            else -> "not selected"
+        }
+
+        val rootOperationsNeedTarget =
+            plan.rootPlan.operationCount > 0 && rootTargetStatus == "not selected"
+
+        return buildString {
+            appendLine("Deploy Plan Context")
+            appendLine("  Game: $gameId")
+            appendLine("  Mode: ${if (realDeployEnabled) "real target folders" else "test output folders"}")
+            appendLine("  Data target: $dataTargetStatus")
+            appendLine("  Game Root target: $rootTargetStatus")
+            appendLine("  Data operations: ${plan.dataPlan.operationCount}")
+            appendLine("  Game Root operations: ${plan.rootPlan.operationCount}")
+
+            if (rootOperationsNeedTarget) {
+                appendLine("  Warning: Game Root operations exist, but no Game Root target is selected.")
+            }
         }
     }
 
