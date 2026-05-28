@@ -55,6 +55,8 @@ import com.shonkware.droidmodloader.engine.resolve.ResolvedFileIdentity
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPlanBuilder
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPlanScope
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightChecker
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
 
 data class UninstallResult(
     val removed: Boolean,
@@ -608,7 +610,17 @@ class ModEngine(
     }
 
     fun buildDeploymentPlanDebugSummary(gameId: String): String {
-        return buildDeploymentPlanForGame(gameId).toDebugSummary()
+        val plan = buildDeploymentPlanForGame(gameId)
+        val preflight = DeploymentPreflightChecker(appContext).check(
+            config = getGameDeploymentConfig(gameId),
+            plan = plan
+        )
+
+        return buildString {
+            appendLine(plan.toDebugSummary())
+            appendLine()
+            appendLine(preflight.toDebugSummary())
+        }
     }
 
     private fun canDeployGameRoot(config: GameDeploymentConfig?): Boolean {
@@ -1468,5 +1480,15 @@ class ModEngine(
         val mod = getCurrentMods().firstOrNull { it.id == modId } ?: return false
         modFileIndexService.rebuildIndex(mod)
         return true
+    }
+
+    fun buildDeploymentPreflightForGame(gameId: String): DeploymentPreflightResult {
+        val plan = buildDeploymentPlanForGame(gameId)
+        val config = getGameDeploymentConfig(gameId)
+
+        return DeploymentPreflightChecker(appContext).check(
+            config = config,
+            plan = plan
+        )
     }
 }
