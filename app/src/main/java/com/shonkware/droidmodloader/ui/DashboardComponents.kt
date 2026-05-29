@@ -1281,7 +1281,8 @@ fun RecoveryToolsCard(
     operationInProgress: Boolean,
     deployRecoveryWarningText: String,
     onViewLastDeployJournal: () -> Unit,
-    onMarkDeployRecoveryReviewed: () -> Unit
+    onMarkDeployRecoveryReviewed: () -> Unit,
+    onBuildFullRedeployPlan: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -1305,6 +1306,19 @@ fun RecoveryToolsCard(
             ) {
                 Text("View Last Deploy Journal")
             }
+
+            Button(
+                enabled = !operationInProgress,
+                onClick = onBuildFullRedeployPlan,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Build Full Redeploy Plan")
+            }
+
+            Text(
+                text = "Shows what DML would rewrite if you rebuilt the deployed game folder from the current mod list. This does not change files.",
+                style = MaterialTheme.typography.bodySmall
+            )
 
             Button(
                 enabled = !operationInProgress && deployRecoveryWarningText.isNotBlank(),

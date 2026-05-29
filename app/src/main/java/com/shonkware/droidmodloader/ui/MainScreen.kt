@@ -137,6 +137,7 @@ data class DashboardActions(
     val onDismissDeployRecoveryWarning: () -> Unit = {},
 
     val onMarkDeployRecoveryReviewed: () -> Unit = {},
+    val onBuildFullRedeployPlan: () -> Unit = {},
 )
 
 @Composable
@@ -249,7 +250,9 @@ private fun MainDashboardScreen(
                     operationInProgress = state.operationInProgress,
                     deployRecoveryWarningText = state.deployRecoveryWarningText,
                     onViewLastDeployJournal = actions.onViewLastDeployJournal,
-                    onMarkDeployRecoveryReviewed = actions.onMarkDeployRecoveryReviewed
+                    onBuildFullRedeployPlan = actions.onBuildFullRedeployPlan,
+                    onMarkDeployRecoveryReviewed = actions.onMarkDeployRecoveryReviewed,
+
                 )
             }
         }

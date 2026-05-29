@@ -1693,4 +1693,63 @@ class ModEngine(
         return true
     }
 
+    fun buildFullRedeployPlanForGame(gameId: String): ScopedDeploymentPlan {
+        val dataManifestRepository = DeploymentManifestRepository(
+            getEffectiveDeploymentManifestFile(gameId)
+        )
+
+        val oldDataManifest = dataManifestRepository.load()
+        val dataWinningRecords = getCurrentDataWinningRecords()
+
+        val rootManifestRepository = DeploymentManifestRepository(
+            getEffectiveRootDeploymentManifestFile(gameId)
+        )
+
+        val oldRootManifest = rootManifestRepository.load()
+        val rootWinningRecords = getCurrentRootWinningRecords()
+
+        val builder = DeploymentPlanBuilder()
+
+        val dataPlan = builder.buildFullRedeploy(
+            scope = DeploymentPlanScope.DATA,
+            oldManifest = oldDataManifest,
+            newWinningRecords = dataWinningRecords
+        )
+
+        val rootPlan = builder.buildFullRedeploy(
+            scope = DeploymentPlanScope.GAME_ROOT,
+            oldManifest = oldRootManifest,
+            newWinningRecords = rootWinningRecords
+        )
+
+        return ScopedDeploymentPlan(
+            dataPlan = dataPlan,
+            rootPlan = rootPlan
+        )
+    }
+
+    fun buildFullRedeployPlanDebugSummary(gameId: String): String {
+        val plan = buildFullRedeployPlanForGame(gameId)
+        val config = getGameDeploymentConfig(gameId)
+
+        val preflight = DeploymentPreflightChecker(appContext).check(
+            config = config,
+            plan = plan
+        )
+
+        return buildString {
+            appendLine("Full Redeploy Plan")
+            appendLine("This is a recovery planning check only.")
+            appendLine("No files were changed.")
+            appendLine()
+            appendLine(buildDeploymentPlanContextSummary(gameId, config, plan))
+            appendLine()
+            appendLine(plan.toDebugSummary())
+            appendLine()
+            appendLine(preflight.toDebugSummary())
+        }
+    }
+
+
+
 }

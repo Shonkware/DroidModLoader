@@ -422,6 +422,10 @@ class MainActivity : ComponentActivity() {
                 runInBackground { runDeploymentPlanDebugSummary() }
             },
 
+            onBuildFullRedeployPlan = {
+                runInBackground { runFullRedeployPlanDebugSummary() }
+            },
+
             onViewLastDeployJournal = {
                 runInBackground { runLastDeployJournalDebugSummary() }
             },
@@ -2591,5 +2595,38 @@ class MainActivity : ComponentActivity() {
 
         refreshDashboard()
     }
+
+    private fun runFullRedeployPlanDebugSummary() {
+        if (operationInProgress) {
+            appendLog("Ignoring full redeploy plan request: operation already in progress.")
+            return
+        }
+
+        beginOperation("Building full redeploy plan...")
+
+        try {
+            val engine = createModEngineForWorkflows()
+                ?: throw IllegalStateException("Could not create engine for active profile.")
+
+            val summary = engine.buildFullRedeployPlanDebugSummary(selectedGameId)
+
+            appendLog("----- Full Redeploy Plan Summary -----")
+            summary.lineSequence().forEach { line ->
+                appendLog(line)
+            }
+            appendLog("----- Full Redeploy Plan Summary End -----")
+            appendLog("No files were changed.")
+            appendLog("RESULT: PASS")
+
+            finishOperation("Full redeploy plan built.")
+        } catch (e: Exception) {
+            appendError("Full redeploy plan failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+            failOperation("Full redeploy plan failed: ${e.message}", e)
+        }
+
+        refreshDashboard()
+    }
+
 }
 

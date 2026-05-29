@@ -285,9 +285,9 @@ class DeploymentPreflightChecker(
 
         val sourceOperations = operations.filter {
             it.type == DeploymentPlanOperationType.ADD ||
-                    it.type == DeploymentPlanOperationType.UPDATE
+                    it.type == DeploymentPlanOperationType.UPDATE ||
+                    it.type == DeploymentPlanOperationType.FORCE_REWRITE
         }
-
         for (operation in sourceOperations) {
             val sourcePath = operation.newRecord?.sourceFilePath
 

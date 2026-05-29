@@ -87,6 +87,87 @@ class DeploymentPlanBuilder {
         )
     }
 
+    fun buildFullRedeploy(
+        scope: DeploymentPlanScope,
+        oldManifest: List<DeploymentRecord>,
+        newWinningRecords: List<FileRecord>
+    ): DeploymentPlan {
+        val oldByPath = oldManifest.associateBy { it.normalizedPath }
+        val newByPath = newWinningRecords.associateBy { it.normalizedPath }
+
+        val allPaths = (oldByPath.keys + newByPath.keys).sorted()
+
+        val operations = mutableListOf<DeploymentPlanOperation>()
+
+        for (path in allPaths) {
+            val oldRecord = oldByPath[path]
+            val newRecord = newByPath[path]
+
+            when {
+                oldRecord == null && newRecord != null -> {
+                    operations.add(
+                        DeploymentPlanOperation(
+                            type = DeploymentPlanOperationType.ADD,
+                            normalizedPath = path,
+                            newRecord = newRecord,
+                            oldRecord = null,
+                            winningModName = newRecord.winningModName,
+                            sourceSizeBytes = getSourceSize(newRecord),
+                            reason = "File is newly provided by the current resolved mod list."
+                        )
+                    )
+                }
+
+                oldRecord != null && newRecord != null -> {
+                    operations.add(
+                        DeploymentPlanOperation(
+                            type = DeploymentPlanOperationType.FORCE_REWRITE,
+                            normalizedPath = path,
+                            newRecord = newRecord,
+                            oldRecord = oldRecord,
+                            winningModName = newRecord.winningModName,
+                            sourceSizeBytes = getSourceSize(newRecord),
+                            reason = "Full redeploy would rewrite this current winning file."
+                        )
+                    )
+                }
+
+                oldRecord != null && newRecord == null -> {
+                    val operationType =
+                        if (oldRecord.hadPreExistingTargetFile && !oldRecord.backupFilePath.isNullOrBlank()) {
+                            DeploymentPlanOperationType.RESTORE_BACKUP
+                        } else {
+                            DeploymentPlanOperationType.REMOVE
+                        }
+
+                    val reason =
+                        if (operationType == DeploymentPlanOperationType.RESTORE_BACKUP) {
+                            "Managed file is no longer needed, and a previous target file should be restored."
+                        } else {
+                            "Managed file is no longer needed and should be removed."
+                        }
+
+                    operations.add(
+                        DeploymentPlanOperation(
+                            type = operationType,
+                            normalizedPath = path,
+                            newRecord = null,
+                            oldRecord = oldRecord,
+                            winningModName = oldRecord.winningModName,
+                            sourceSizeBytes = null,
+                            reason = reason
+                        )
+                    )
+                }
+            }
+        }
+
+        return DeploymentPlan(
+            scope = scope,
+            operations = operations
+        )
+    }
+
     private fun hasChanged(
         oldRecord: DeploymentRecord,
         newRecord: FileRecord

@@ -11,6 +11,7 @@ enum class DeploymentPlanScope {
 enum class DeploymentPlanOperationType {
     ADD,
     UPDATE,
+    FORCE_REWRITE,
     REMOVE,
     RESTORE_BACKUP
 }
@@ -34,12 +35,16 @@ data class DeploymentPlan(
     val operationCount: Int
         get() = operations.size
 
+    val forceRewriteCount: Int
+        get() = operations.count { it.type == DeploymentPlanOperationType.FORCE_REWRITE }
+
     val estimatedBytesToCopy: Long?
         get() {
             val values = operations
                 .filter {
                     it.type == DeploymentPlanOperationType.ADD ||
-                            it.type == DeploymentPlanOperationType.UPDATE
+                            it.type == DeploymentPlanOperationType.UPDATE ||
+                            it.type == DeploymentPlanOperationType.FORCE_REWRITE
                 }
                 .map { it.sourceSizeBytes }
 
@@ -53,6 +58,7 @@ data class DeploymentPlan(
             appendLine("${scope.displayName()} Deploy Plan")
             appendLine("  Adds: $addCount")
             appendLine("  Updates: $updateCount")
+            appendLine("  Force rewrites: $forceRewriteCount")
             appendLine("  Removes: $removeCount")
             appendLine("  Backup restores: $restoreBackupCount")
             appendLine("  Total operations: $operationCount")
