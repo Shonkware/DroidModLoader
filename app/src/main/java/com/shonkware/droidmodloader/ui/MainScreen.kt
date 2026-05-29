@@ -235,6 +235,16 @@ private fun MainDashboardScreen(
                 onBuildDeploymentPlan = actions.onBuildDeploymentPlan,
                 onRepairV050Artifacts = actions.onRepairV050Artifacts,
             )
+
+            RecoveryToolsCard(
+                operationInProgress = state.operationInProgress,
+                deployRecoveryWarningText = state.deployRecoveryWarningText,
+                onViewLastDeployJournal = actions.onViewLastDeployJournal,
+                onBuildFullRedeployPlan = actions.onBuildFullRedeployPlan,
+                onRequestForceFullRedeploy = actions.onRequestForceFullRedeploy,
+                onMarkDeployRecoveryReviewed = actions.onMarkDeployRecoveryReviewed
+            )
+
             if (state.showDeployRecoveryDialog) {
                 AlertDialog(
                     onDismissRequest = actions.onCloseDeployRecoveryDetails,
@@ -247,43 +257,6 @@ private fun MainDashboardScreen(
                     confirmButton = {
                         TextButton(onClick = actions.onCloseDeployRecoveryDetails) {
                             Text("Close")
-                        }
-                    }
-                )
-            }
-            if (state.developerModeEnabled) {
-                RecoveryToolsCard(
-                    operationInProgress = state.operationInProgress,
-                    deployRecoveryWarningText = state.deployRecoveryWarningText,
-                    onViewLastDeployJournal = actions.onViewLastDeployJournal,
-                    onBuildFullRedeployPlan = actions.onBuildFullRedeployPlan,
-                    onRequestForceFullRedeploy = actions.onRequestForceFullRedeploy,
-                    onMarkDeployRecoveryReviewed = actions.onMarkDeployRecoveryReviewed
-                )
-
-            }
-
-            if (state.showForceFullRedeployConfirmDialog) {
-                AlertDialog(
-                    onDismissRequest = actions.onCancelForceFullRedeploy,
-                    title = {
-                        Text("Force Full Redeploy")
-                    },
-                    text = {
-                        Text(
-                            "This will rewrite every currently managed file for this profile.\n\n" +
-                                    "It will not intentionally delete unmanaged files, but it can replace files already managed by Droid Mod Loader.\n\n" +
-                                    "Use this after an interrupted deploy or when the deployed folder looks out of sync."
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = actions.onConfirmForceFullRedeploy) {
-                            Text("Run Full Redeploy")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = actions.onCancelForceFullRedeploy) {
-                            Text("Cancel")
                         }
                     }
                 )
