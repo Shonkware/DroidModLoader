@@ -694,6 +694,17 @@ class MainActivity : ComponentActivity() {
     private fun getProfileStateDir(externalBaseDir: File): File {
         return File(externalBaseDir, "state/profiles/${getActiveProfileStorageKey()}")
     }
+
+    private fun getArchiveLibraryDir(): File? {
+        val externalBaseDir = getExternalFilesDir(null)
+        if (externalBaseDir == null) {
+            appendError("External files directory is null")
+            return null
+        }
+
+        return File(externalBaseDir, "downloads/archive_library")
+    }
+
     private fun copyUriToFile(uri: Uri, destinationFile: File): File {
         destinationFile.parentFile?.mkdirs()
 
@@ -709,6 +720,34 @@ class MainActivity : ComponentActivity() {
 
         return destinationFile
     }
+    private fun uniqueFile(
+        directory: File,
+        preferredName: String
+    ): File {
+        val safeName = preferredName
+            .replace(Regex("""[\\/:*?"<>|]"""), "_")
+            .ifBlank { "imported_archive" }
+
+        val baseName = safeName.substringBeforeLast('.', safeName)
+        val extension = safeName.substringAfterLast('.', missingDelimiterValue = "")
+
+        var candidate = File(directory, safeName)
+        var index = 1
+
+        while (candidate.exists()) {
+            val nextName = if (extension.isBlank()) {
+                "$baseName ($index)"
+            } else {
+                "$baseName ($index).$extension"
+            }
+
+            candidate = File(directory, nextName)
+            index++
+        }
+
+        return candidate
+    }
+
     private fun copyUriToTemporaryArchiveFile(uri: Uri, sanitizedName: String): File {
         cleanOldTemporaryImportSources()
 
@@ -722,6 +761,23 @@ class MainActivity : ComponentActivity() {
 
         return copyUriToFile(uri, tempArchive)
     }
+    private fun copyUriToArchiveLibraryFile(
+        uri: Uri,
+        displayName: String
+    ): File {
+        val archiveLibraryDir = getArchiveLibraryDir()
+            ?: throw IllegalStateException("Archive library directory is unavailable.")
+
+        archiveLibraryDir.mkdirs()
+
+        val destinationFile = uniqueFile(
+            directory = archiveLibraryDir,
+            preferredName = displayName
+        )
+
+        return copyUriToFile(uri, destinationFile)
+    }
+
     private fun cleanOldTemporaryImportSources(maxAgeMillis: Long = 24L * 60L * 60L * 1000L) {
         val tempSourceDir = File(getProfileInternalDir(), "temp/import_sources")
         if (!tempSourceDir.exists()) return
@@ -882,27 +938,42 @@ class MainActivity : ComponentActivity() {
             appendLog("Ignoring import request: operation already in progress.")
             return
         }
+
         beginOperation("Importing archive...")
 
-        val engine = createModEngineForWorkflows() ?: return
+        val engine = createModEngineForWorkflows()
+        if (engine == null) {
+            failOperation("Import archive failed: engine could not be created.")
+            return
+        }
+
         val fileName = queryDisplayName(uri) ?: "imported_mod"
         val sanitizedName = fileName.replace(Regex("""[^\w.\- ]"""), "_")
 
-        var temporaryArchive: File? = null
+        var archiveLibraryFile: File? = null
 
         try {
-            temporaryArchive = copyUriToTemporaryArchiveFile(uri, sanitizedName)
+            archiveLibraryFile = copyUriToArchiveLibraryFile(
+                uri = uri,
+                displayName = sanitizedName
+            )
 
-            appendLog("Selected archive copied to temporary install cache: ${temporaryArchive.name}")
-            appendLog("Temporary archive size: ${temporaryArchive.length()} bytes")
+            val archiveRecord = engine.registerDownloadedArchive(
+                archiveFile = archiveLibraryFile,
+                originalDisplayName = fileName,
+                sourceUri = uri.toString()
+            )
+
+            appendLog("Archive saved to library: ${archiveRecord.fileName}")
+            appendLog("Archive format: ${archiveRecord.archiveFormat}")
+            appendLog("Archive size: ${archiveRecord.sizeBytes} bytes")
+            appendLog("Archive record ID: ${archiveRecord.archiveId}")
             appendLog("About to install imported archive using engine...")
 
             val existingMods = engine.getInstalledModsFromFolders()
             val nextPriority = if (existingMods.isEmpty()) 1 else (existingMods.maxOf { it.priority } + 1)
 
-            val prepared = engine.prepareArchiveInstall(temporaryArchive)
-            temporaryArchive.delete()
-            temporaryArchive = null
+            val prepared = engine.prepareArchiveInstall(archiveLibraryFile)
 
             if (prepared.plan.requiresUserChoice) {
                 runOnUiThread {
@@ -926,7 +997,14 @@ class MainActivity : ComponentActivity() {
                 sourceType = "imported_archive"
             )
 
+            engine.markDownloadedArchiveInstalled(
+                archiveId = archiveRecord.archiveId,
+                installedModId = installedMod.id
+            )
+
             appendLog("Archive install returned successfully.")
+            appendLog("Archive record marked installed: ${archiveRecord.archiveId}")
+
             val currentMods = engine.getCurrentMods()
                 .filterNot { it.id == installedMod.id }
                 .sortedBy { it.priority }
@@ -943,8 +1021,6 @@ class MainActivity : ComponentActivity() {
             appendLog("RESULT: PASS")
             finishOperation("Archive imported successfully.")
         } catch (t: Throwable) {
-            temporaryArchive?.delete()
-
             appendLog("CRASH TYPE: ${t::class.java.name}")
             appendLog("RESULT: FAIL")
             failOperation("Import archive failed: ${t.message}", t)
