@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import com.shonkware.droidmodloader.ui.theme.DmlTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -30,7 +31,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.shonkware.droidmodloader.ui.theme.DmlTheme
 import com.shonkware.droidmodloader.ui.FullscreenPanel
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import android.os.Looper
@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
     private var realDeployEnabledState by mutableStateOf(false)
 
     private var pendingArchiveInstall by mutableStateOf<PreparedArchiveInstall?>(null)
+    private var pendingInstallerArchiveRecordId by mutableStateOf<String?>(null)
     private var pendingInstallerSelectedOptionIds by mutableStateOf<Set<String>>(emptySet())
     private var showInstallerDialog by mutableStateOf(false)
     private var installerDialogFullscreen by mutableStateOf(false)
@@ -258,7 +259,7 @@ class MainActivity : ComponentActivity() {
 
             showForceFullRedeployConfirmDialog = showForceFullRedeployConfirmDialog,
 
-        )
+            )
     }
 
     private fun buildUiActions(): DashboardActions {
@@ -461,7 +462,7 @@ class MainActivity : ComponentActivity() {
                 showForceFullRedeployConfirmDialog = false
             },
 
-        )
+            )
 
     }
 
@@ -694,17 +695,6 @@ class MainActivity : ComponentActivity() {
     private fun getProfileStateDir(externalBaseDir: File): File {
         return File(externalBaseDir, "state/profiles/${getActiveProfileStorageKey()}")
     }
-
-    private fun getArchiveLibraryDir(): File? {
-        val externalBaseDir = getExternalFilesDir(null)
-        if (externalBaseDir == null) {
-            appendError("External files directory is null")
-            return null
-        }
-
-        return File(externalBaseDir, "downloads/archive_library")
-    }
-
     private fun copyUriToFile(uri: Uri, destinationFile: File): File {
         destinationFile.parentFile?.mkdirs()
 
@@ -720,6 +710,30 @@ class MainActivity : ComponentActivity() {
 
         return destinationFile
     }
+    private fun copyUriToTemporaryArchiveFile(uri: Uri, sanitizedName: String): File {
+        cleanOldTemporaryImportSources()
+
+        val tempSourceDir = File(getProfileInternalDir(), "temp/import_sources")
+        tempSourceDir.mkdirs()
+
+        val tempArchive = File(
+            tempSourceDir,
+            "${System.currentTimeMillis()}_$sanitizedName"
+        )
+
+        return copyUriToFile(uri, tempArchive)
+    }
+
+    private fun getArchiveLibraryDir(): File? {
+        val externalBaseDir = getExternalFilesDir(null)
+        if (externalBaseDir == null) {
+            appendError("External files directory is null")
+            return null
+        }
+
+        return File(externalBaseDir, "downloads/archive_library")
+    }
+
     private fun uniqueFile(
         directory: File,
         preferredName: String
@@ -748,19 +762,6 @@ class MainActivity : ComponentActivity() {
         return candidate
     }
 
-    private fun copyUriToTemporaryArchiveFile(uri: Uri, sanitizedName: String): File {
-        cleanOldTemporaryImportSources()
-
-        val tempSourceDir = File(getProfileInternalDir(), "temp/import_sources")
-        tempSourceDir.mkdirs()
-
-        val tempArchive = File(
-            tempSourceDir,
-            "${System.currentTimeMillis()}_$sanitizedName"
-        )
-
-        return copyUriToFile(uri, tempArchive)
-    }
     private fun copyUriToArchiveLibraryFile(
         uri: Uri,
         displayName: String
@@ -950,10 +951,8 @@ class MainActivity : ComponentActivity() {
         val fileName = queryDisplayName(uri) ?: "imported_mod"
         val sanitizedName = fileName.replace(Regex("""[^\w.\- ]"""), "_")
 
-        var archiveLibraryFile: File? = null
-
         try {
-            archiveLibraryFile = copyUriToArchiveLibraryFile(
+            val archiveLibraryFile = copyUriToArchiveLibraryFile(
                 uri = uri,
                 displayName = sanitizedName
             )
@@ -971,19 +970,25 @@ class MainActivity : ComponentActivity() {
             appendLog("About to install imported archive using engine...")
 
             val existingMods = engine.getInstalledModsFromFolders()
-            val nextPriority = if (existingMods.isEmpty()) 1 else (existingMods.maxOf { it.priority } + 1)
+            val nextPriority = if (existingMods.isEmpty()) {
+                1
+            } else {
+                existingMods.maxOf { it.priority } + 1
+            }
 
             val prepared = engine.prepareArchiveInstall(archiveLibraryFile)
 
             if (prepared.plan.requiresUserChoice) {
                 runOnUiThread {
                     pendingArchiveInstall = prepared
+                    pendingInstallerArchiveRecordId = archiveRecord.archiveId
                     pendingInstallerSelectedOptionIds = prepared.plan.defaultSelectedOptionIds
                     showInstallerDialog = true
                     installerDialogFullscreen = false
                 }
 
                 appendLog("Installer choices required: ${prepared.plan.installerType}")
+                appendLog("Pending installer archive record ID: ${archiveRecord.archiveId}")
                 prepared.plan.warnings.forEach { appendLog("INSTALLER WARNING: $it") }
 
                 finishOperation("Choose installer options.")
@@ -2272,6 +2277,8 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        val installerArchiveRecordId = pendingInstallerArchiveRecordId
+
         beginOperation("Installing selected options...")
 
         val engine = createModEngineForWorkflows()
@@ -2282,7 +2289,11 @@ class MainActivity : ComponentActivity() {
 
         try {
             val existingMods = engine.getCurrentMods()
-            val nextPriority = if (existingMods.isEmpty()) 1 else existingMods.maxOf { it.priority } + 1
+            val nextPriority = if (existingMods.isEmpty()) {
+                1
+            } else {
+                existingMods.maxOf { it.priority } + 1
+            }
 
             val installedMod = engine.finalizePreparedArchiveInstall(
                 prepared = prepared,
@@ -2298,10 +2309,22 @@ class MainActivity : ComponentActivity() {
             val updatedMods = currentMods + installedMod.copy(priority = currentMods.size + 1)
             engine.saveCurrentMods(updatedMods)
 
+            if (!installerArchiveRecordId.isNullOrBlank()) {
+                engine.markDownloadedArchiveInstalled(
+                    archiveId = installerArchiveRecordId,
+                    installedModId = installedMod.id
+                )
+
+                appendLog("Archive record marked installed: $installerArchiveRecordId")
+            } else {
+                appendLog("No archive record ID was attached to this installer session.")
+            }
+
             syncPluginsFromCurrentState(engine)
 
             runOnUiThread {
                 pendingArchiveInstall = null
+                pendingInstallerArchiveRecordId = null
                 pendingInstallerSelectedOptionIds = emptySet()
                 showInstallerDialog = false
                 installerDialogFullscreen = false
@@ -2399,6 +2422,7 @@ class MainActivity : ComponentActivity() {
 
         runOnUiThread {
             pendingArchiveInstall = null
+            pendingInstallerArchiveRecordId = null
             pendingInstallerSelectedOptionIds = emptySet()
             showInstallerDialog = false
             installerDialogFullscreen = false
