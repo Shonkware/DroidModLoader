@@ -36,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +51,8 @@ import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
-
+import com.shonkware.droidmodloader.ui.theme.DmlDefaults
+import com.shonkware.droidmodloader.ui.theme.DmlColors
 
 @Composable
 fun HeaderCard(
@@ -60,7 +60,11 @@ fun HeaderCard(
     versionLabel: String,
     onVersionTap: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = appName,
@@ -97,7 +101,11 @@ fun StatusCard(
         selectedRootTreeUriText.isNotBlank() &&
                 selectedRootTreeUriText != "No root folder selected"
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -169,7 +177,11 @@ fun StatusCard(
 
 @Composable
 fun QuickStartCard() {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -194,7 +206,11 @@ fun MainActionsCard(
     onDeployMods: () -> Unit,
     onWriteLoadOrderFiles: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -240,7 +256,11 @@ fun ModsCard(
     onOpenFullscreen: () -> Unit,
     onOpenOverwriteFolder: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -297,7 +317,8 @@ fun CompactModRow(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        colors = DmlDefaults.raisedCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
     ) {
         Column(
             modifier = Modifier
@@ -503,7 +524,11 @@ fun PluginsCard(
     onMovePluginDown: (String) -> Unit,
     onOpenFullscreen: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -553,7 +578,8 @@ fun PluginRow(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        colors = DmlDefaults.raisedCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -619,7 +645,11 @@ fun DeploymentSettingsCard(
     onSaveSettings: () -> Unit,
     onToggleSecondScreen: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -719,7 +749,11 @@ fun ReportCard(
     logText: String,
     onShareLogs: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -745,7 +779,11 @@ fun DeveloperToolsCard(
     onBuildDeploymentPlan: () -> Unit,
     onRepairV050Artifacts: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -809,7 +847,9 @@ fun SetupScreen(
     state: DashboardUiState,
     actions: DashboardActions
 ) {
-    Scaffold { padding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -818,7 +858,11 @@ fun SetupScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1033,7 +1077,8 @@ fun InstallerChoiceDialog(
                 prepared.plan.groups.forEach { group ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        colors = DmlDefaults.raisedCardColors(),
+                        border = BorderStroke(1.dp, DmlColors.BorderDim)
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp),
@@ -1196,7 +1241,8 @@ fun OverwriteDialog(
                     entries.forEach { entry ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            colors = DmlDefaults.raisedCardColors(),
+                            border = BorderStroke(1.dp, DmlColors.BorderDim)
                         ) {
                             Column(
                                 modifier = Modifier.padding(10.dp),
@@ -1239,7 +1285,11 @@ fun DeployRecoveryWarningCard(
 ) {
     if (warningText.isBlank()) return
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1278,7 +1328,11 @@ fun RecoveryToolsCard(
     onRequestForceFullRedeploy: () -> Unit,
     onBuildFullRedeployPlan: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = DmlDefaults.panelCardColors(),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1387,18 +1441,21 @@ fun FolderSummaryRow(
     summary: ModFileFolderSummary
 ) {
     val background = when (summary.dominantStatus) {
-        ModFilePreviewStatus.WINNING -> Color(0xFFE5F4E8)
-        ModFilePreviewStatus.OVERWRITTEN -> Color(0xFFFFE5E5)
-        ModFilePreviewStatus.PLUGIN -> Color(0xFFE8F0FE)
-        ModFilePreviewStatus.ARCHIVE -> Color(0xFFE8F0FE)
-        ModFilePreviewStatus.CONFIG -> Color(0xFFFFF4D6)
-        else -> MaterialTheme.colorScheme.surface
+        ModFilePreviewStatus.WINNING -> DmlColors.Green.copy(alpha = 0.18f)
+        ModFilePreviewStatus.OVERWRITTEN -> DmlColors.RedDark.copy(alpha = 0.55f)
+        ModFilePreviewStatus.PLUGIN -> DmlColors.SurfaceRaised
+        ModFilePreviewStatus.ARCHIVE -> DmlColors.SurfaceRaised
+        ModFilePreviewStatus.CONFIG -> DmlColors.Amber.copy(alpha = 0.18f)
+        else -> DmlColors.SurfaceRaised
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = background),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        colors = CardDefaults.cardColors(
+            containerColor = background,
+            contentColor = DmlColors.Text
+        ),
+        border = BorderStroke(1.dp, DmlColors.BorderDim)
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
