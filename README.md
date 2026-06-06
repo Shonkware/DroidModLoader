@@ -210,29 +210,12 @@ Major work still planned before a stable 1.0 release includes:
 * cleaner public guides
 * more tests for risky file logic
 
-
-## Roadmap
-
-The full roadmap is here:
-
-[ROADMAP.md](ROADMAP.md)
-
-The short version is:
-
-* make deployment safe
-* make profiles reliable
-* make installed mods easier to understand
-* make plugin problems easier to see
-* make real mod archives install correctly
-* make GameNative setup less confusing
-* make support reports useful
-* then build collections, guides, and larger ecosystem features
-
-## Project Vision
-
-The deeper project direction is documented here:
+## Project Documentation
 
 - [Project Vision](docs/vision.md)
+- [Requirements](docs/requirements.md)
+- [Roadmap](ROADMAP.md)
+- [Brand Assets](docs/assets/brand-assets.md)
 
 ## Installer support
 
