@@ -212,10 +212,16 @@ Major work still planned before a stable 1.0 release includes:
 
 ## Project Documentation
 
+- [Documentation Index](docs/index.md)
 - [Project Vision](docs/vision.md)
 - [Requirements](docs/requirements.md)
+- [Architecture](docs/architecture.md)
+- [Decision Log](docs/decisions.md)
+- [Testing](docs/testing.md)
+- [Release Checklist](docs/release-checklist.md)
 - [Roadmap](ROADMAP.md)
 - [Brand Assets](docs/assets/brand-assets.md)
+- [Changelog](releases/changelog.md)
 
 ## Installer support
 
