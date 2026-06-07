@@ -227,6 +227,7 @@ Major work still planned before a stable 1.0 release includes:
 - [Release Notes Template](releases/templates/release-notes-template.md)
 - [APK Upload Checklist](releases/templates/apk-upload-checklist.md)
 - [Development Loop](docs/process/development-loop.md)
+- [Git Workflow](docs/process/git-workflow.md)
 - [Roadmap vs Tasks](docs/process/roadmap-vs-tasks.md)
 - [Roadmap](ROADMAP.md)
 - [Task Template](docs/tasks/task-template.md)
