@@ -220,6 +220,9 @@ Major work still planned before a stable 1.0 release includes:
 - [Testing](docs/testing.md)
 - [Release Checklist](docs/release-checklist.md)
 - [Roadmap](ROADMAP.md)
+- [Task Template](docs/tasks/task-template.md)
+- [Current Priorities](docs/tasks/current-priorities.md)
+- [Backlog](docs/tasks/backlog.md)
 - [Brand Assets](docs/assets/brand-assets.md)
 - [Changelog](releases/changelog.md)
 
