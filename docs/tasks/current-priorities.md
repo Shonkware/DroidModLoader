@@ -1,8 +1,10 @@
 # Droid Mod Loader Current Priorities
 
-This file tracks the small set of tasks that should be worked on next.
+This is the short active task list.
 
-Do not let this become the full roadmap. Keep it focused.
+Do not use this file as the full roadmap.
+
+Keep this file limited to the next 3 to 7 focused tasks.
 
 ## Current Rule
 

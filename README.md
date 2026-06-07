@@ -211,7 +211,6 @@ Major work still planned before a stable 1.0 release includes:
 * more tests for risky file logic
 
 ## Project Documentation
-
 - [Documentation Index](docs/index.md)
 - [Project Vision](docs/vision.md)
 - [Requirements](docs/requirements.md)
@@ -220,12 +219,13 @@ Major work still planned before a stable 1.0 release includes:
 - [Testing](docs/testing.md)
 - [Release Checklist](docs/release-checklist.md)
 - [Development Loop](docs/process/development-loop.md)
+- [Roadmap vs Tasks](docs/process/roadmap-vs-tasks.md)
 - [Roadmap](ROADMAP.md)
 - [Task Template](docs/tasks/task-template.md)
 - [Current Priorities](docs/tasks/current-priorities.md)
 - [Backlog](docs/tasks/backlog.md)
 - [Brand Assets](docs/assets/brand-assets.md)
-- [Changelog](releases/changelog.md)
+- [Changelog](releases/changelog.md)## Project Documentation
 
 ## Installer support
 

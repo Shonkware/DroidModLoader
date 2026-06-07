@@ -1,30 +1,37 @@
 # Droid Mod Loader Roadmap
 
-This roadmap shows where Droid Mod Loader is going.
+This roadmap tracks the major direction for Droid Mod Loader.
 
-It is not a promise that every feature will land in the exact order listed. Some things may move around as testing shows what needs to be fixed first.
+It is not the task list.
 
-The main goal is:
+## Planning Rules
 
-Make Bethesda modding on Android safer, clearer, and easier to repeat.
+- Use this roadmap for major phases and project direction.
+- Use `docs/tasks/current-priorities.md` for near-term work.
+- Use `docs/tasks/backlog.md` for rough or deferred ideas.
+- Use GitHub Issues for scoped implementation tasks.
+- Use `docs/decisions.md` for major decisions.
+- Do not code directly from a vague roadmap item.
+- Convert roadmap items into scoped tasks before implementation.
 
-Droid Mod Loader is being built around real Android storage limits, shared game folders, GameNative testing, and the way Bethesda mods actually behave.
+## Current Core Direction
 
-## Current focus
+Droid Mod Loader should become an MO2-style resolver, profile manager, and transactional physical deployer for Android Bethesda modding.
 
-Right now, the project is focused on making the foundation safe.
+MO2 uses a virtual file system.
 
-That means:
+Droid Mod Loader uses indexed physical deployment.
 
-* better file deployment
-* better profile isolation
-* better recovery when something goes wrong
-* better plugin handling
-* better installer support
-* better diagnostics for testers
-* better GameNative setup support
+The core model is:
 
-The app is still in beta. Some systems work now, some are early, and some are planned.
+1. Installed mods
+2. File indexes
+3. Resolved game view
+4. Deploy plan
+5. Physical deploy
+6. Verification
+7. Diagnostics
+8. Recovery
 
 ## What already exists in early form
 
