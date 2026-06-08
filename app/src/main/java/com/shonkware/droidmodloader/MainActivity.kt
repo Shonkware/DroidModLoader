@@ -426,6 +426,9 @@ class MainActivity : ComponentActivity() {
             onBuildDeploymentPlan = {
                 runInBackground { runDeploymentPlanDebugSummary() }
             },
+            onShowArchiveLibrarySummary = {
+                runInBackground { runArchiveLibraryDebugSummary() }
+            },
 
             onBuildFullRedeployPlan = {
                 runInBackground { runFullRedeployPlanDebugSummary() }
@@ -2740,6 +2743,38 @@ class MainActivity : ComponentActivity() {
             appendError("Deploy plan failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
             failOperation("Deploy plan failed: ${e.message}", e)
+        }
+
+        refreshDashboard()
+    }
+
+    private fun runArchiveLibraryDebugSummary() {
+        if (operationInProgress) {
+            appendLog("Ignoring archive library summary request: operation already in progress.")
+            return
+        }
+
+        beginOperation("Building archive library summary...")
+
+        try {
+            val engine = createModEngineForWorkflows()
+                ?: throw IllegalStateException("Could not create engine for active profile.")
+
+            val summary = engine.buildDownloadedArchiveSummary()
+
+            appendLog("----- Archive Library Summary -----")
+            summary.lineSequence().forEach { line ->
+                appendLog(line)
+            }
+            appendLog("----- Archive Library Summary End -----")
+            appendLog("No files were changed.")
+            appendLog("RESULT: PASS")
+
+            finishOperation("Archive library summary built.")
+        } catch (e: Exception) {
+            appendError("Archive library summary failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+            failOperation("Archive library summary failed: ${e.message}", e)
         }
 
         refreshDashboard()

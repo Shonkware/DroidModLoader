@@ -768,6 +768,7 @@ fun DeveloperToolsCard(
     operationInProgress: Boolean,
     onBuildResolvedDataGraph: () -> Unit,
     onBuildDeploymentPlan: () -> Unit,
+    onShowArchiveLibrarySummary: () -> Unit,
     onRepairV050Artifacts: () -> Unit
 ) {
     Card(
@@ -809,6 +810,19 @@ fun DeveloperToolsCard(
 
             Text(
                 text = "Developer check: compares the current resolved winners against the saved deploy manifests. No files are changed.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Button(
+                enabled = !operationInProgress,
+                onClick = onShowArchiveLibrarySummary,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Show Archive Library Summary")
+            }
+
+            Text(
+                text = "Developer check: lists saved imported archive metadata for the active profile without changing files.",
                 style = MaterialTheme.typography.bodySmall
             )
 

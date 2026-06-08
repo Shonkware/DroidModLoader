@@ -131,6 +131,7 @@ data class DashboardActions(
 
     val onBuildResolvedDataGraph: () -> Unit = {},
     val onBuildDeploymentPlan: () -> Unit = {},
+    val onShowArchiveLibrarySummary: () -> Unit = {},
     val onViewLastDeployJournal: () -> Unit = {},
 
     val onOpenDeployRecoveryDetails: () -> Unit = {},
@@ -236,6 +237,7 @@ private fun MainDashboardScreen(
                         operationInProgress = state.operationInProgress,
                         onBuildResolvedDataGraph = actions.onBuildResolvedDataGraph,
                         onBuildDeploymentPlan = actions.onBuildDeploymentPlan,
+                        onShowArchiveLibrarySummary = actions.onShowArchiveLibrarySummary,
                         onRepairV050Artifacts = actions.onRepairV050Artifacts
                     )
                 }
