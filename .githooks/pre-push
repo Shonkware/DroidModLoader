@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running DML pre-push checks..."
+
+echo
+echo "1/4 Checking working tree..."
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "ERROR: Working tree has uncommitted changes."
+  echo "Commit or restore changes before pushing."
+  git status --short
+  exit 1
+fi
+
+echo
+echo "2/4 Checking documentation structure..."
+./tools/check-docs.sh
+
+echo
+echo "3/4 Checking project..."
+./tools/check-project.sh
+
+echo
+echo "4/4 Checking whether documentation may need review..."
+
+LAST_PUSH_BASE="$(git merge-base HEAD @{u} 2>/dev/null || true)"
+
+if [ -n "$LAST_PUSH_BASE" ]; then
+  CHANGED_FILES="$(git diff --name-only "$LAST_PUSH_BASE"..HEAD)"
+else
+  CHANGED_FILES="$(git diff --name-only HEAD~1..HEAD || true)"
+fi
+
+CODE_CHANGED="$(echo "$CHANGED_FILES" | grep -E '^(app/src|app/build.gradle|gradle|settings.gradle|build.gradle)' || true)"
+DOCS_CHANGED="$(echo "$CHANGED_FILES" | grep -E '^(README.md|ROADMAP.md|docs/|releases/|CHANGELOG.md)' || true)"
+
+if [ -n "$CODE_CHANGED" ] && [ -z "$DOCS_CHANGED" ]; then
+  echo
+  echo "ERROR: Code/build files changed, but no docs/release notes changed in this push."
+  echo
+  echo "Review documentation before pushing."
+  echo "Update docs if needed, or create a small docs commit explaining that no user-facing docs changed."
+  echo
+  echo "Changed code/build files:"
+  echo "$CODE_CHANGED"
+  exit 1
+fi
+
+echo
+echo "Pre-push checks passed."
