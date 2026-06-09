@@ -60,6 +60,7 @@ Use this format for each release:
 - GitHub Actions CI for unit tests, debug builds, and documentation checks.
 - Added unit coverage for archive metadata tracking, Nexus URL parsing, and archive metadata summaries.
 - Added a Developer Tools action to print the saved archive library metadata summary without changing files.
+- Added a pre-push documentation gate so project docs stay current before GitHub pushes.
 
 ### Changed
 
