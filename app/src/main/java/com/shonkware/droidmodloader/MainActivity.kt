@@ -46,17 +46,13 @@ import com.shonkware.droidmodloader.engine.install.InstallerOptionSelectionHelpe
 import com.shonkware.droidmodloader.ui.workflow.ProfileWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.ModActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.ArchiveImportWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.FolderPickMode
+import com.shonkware.droidmodloader.ui.workflow.FolderPickerWorkflowController
 
 class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "DroidModLoader"
-    }
-
-    private enum class FolderPickMode {
-        ActiveDataFolder,
-        ActiveGameRootFolder,
-        NewProfileDataFolder
     }
 
     private var secondScreenController: SecondScreenController? = null
@@ -138,26 +134,10 @@ class MainActivity : ComponentActivity() {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
 
-            val uriString = uri.toString()
-
-            runInBackground {
-                when (folderPickMode) {
-                    FolderPickMode.ActiveDataFolder -> {
-                        savePickedDataFolderToSelectedGameConfig(uriString)
-                    }
-
-                    FolderPickMode.ActiveGameRootFolder -> {
-                        savePickedRootFolderToSelectedGameConfig(uriString)
-                    }
-
-                    FolderPickMode.NewProfileDataFolder -> {
-                        runOnUiThread {
-                            newProfileTreeUriText = uriString
-                        }
-                        appendLog("Selected Data folder for new profile.")
-                    }
-                }
-            }
+            folderPickerWorkflowController.handlePickedFolder(
+                mode = folderPickMode,
+                treeUri = uri.toString()
+            )
         } catch (e: Exception) {
             appendError("Failed to persist folder permission: ${e.message}", e)
         }
@@ -227,6 +207,23 @@ class MainActivity : ComponentActivity() {
             runInBackground = { task -> runInBackground(task) },
             handleImportedArchive = { uri -> handleImportedArchive(uri) },
             showArchiveLibrarySummary = { runArchiveLibraryDebugSummary() }
+        )
+    }
+    private val folderPickerWorkflowController by lazy {
+        FolderPickerWorkflowController(
+            runInBackground = { task -> runInBackground(task) },
+            savePickedDataFolderToSelectedGameConfig = { treeUri ->
+                savePickedDataFolderToSelectedGameConfig(treeUri)
+            },
+            savePickedRootFolderToSelectedGameConfig = { treeUri ->
+                savePickedRootFolderToSelectedGameConfig(treeUri)
+            },
+            setNewProfileTreeUriText = { treeUri ->
+                runOnUiThread {
+                    newProfileTreeUriText = treeUri
+                }
+            },
+            appendLog = { message -> appendLog(message) }
         )
     }
 
@@ -2793,6 +2790,8 @@ class MainActivity : ComponentActivity() {
         selectedRootTreeUriText = state.targetRootTreeUriText
         realDeployEnabledState = state.realDeployEnabled
     }
+
+
 
 
 }
