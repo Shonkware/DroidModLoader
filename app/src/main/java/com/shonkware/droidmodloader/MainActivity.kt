@@ -45,6 +45,7 @@ import com.shonkware.droidmodloader.ui.workflow.InstallerWorkflowController
 import com.shonkware.droidmodloader.engine.install.InstallerOptionSelectionHelper
 import com.shonkware.droidmodloader.ui.workflow.ProfileWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.ModActionWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.ArchiveImportWorkflowController
 
 class MainActivity : ComponentActivity() {
 
@@ -123,18 +124,6 @@ class MainActivity : ComponentActivity() {
 
     private var showForceFullRedeployConfirmDialog by mutableStateOf(false)
 
-    private val importZipLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri == null) {
-            appendLog("No file selected.")
-            return@registerForActivityResult
-        }
-
-        runInBackground {
-            handleImportedArchive(uri)
-        }
-    }
     private val pickTargetFolderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -227,6 +216,20 @@ class MainActivity : ComponentActivity() {
             onApplyModOrder = { orderedModIds -> applyModOrder(orderedModIds) }
         )
     }
+    private val importZipLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        archiveImportWorkflowController.handleArchivePickerResult(uri)
+    }
+    private val archiveImportWorkflowController by lazy {
+        ArchiveImportWorkflowController(
+            appendLog = { message -> appendLog(message) },
+            runInBackground = { task -> runInBackground(task) },
+            handleImportedArchive = { uri -> handleImportedArchive(uri) },
+            showArchiveLibrarySummary = { runArchiveLibraryDebugSummary() }
+        )
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -481,17 +484,14 @@ class MainActivity : ComponentActivity() {
                 runInBackground { runDeploymentPlanDebugSummary() }
             },
             onShowArchiveLibrarySummary = {
-                runInBackground { runArchiveLibraryDebugSummary() }
+                archiveImportWorkflowController.requestArchiveLibrarySummary()
             },
-
             onBuildFullRedeployPlan = {
                 runInBackground { runFullRedeployPlanDebugSummary() }
             },
-
             onViewLastDeployJournal = {
                 runInBackground { runLastDeployJournalDebugSummary() }
             },
-
             onOpenDeployRecoveryDetails = {
                 showDeployRecoveryDialog = true
             },
@@ -503,11 +503,9 @@ class MainActivity : ComponentActivity() {
                 showDeployRecoveryDialog = false
                 appendLog("Dismissed previous deploy warning for this session.")
             },
-
             onMarkDeployRecoveryReviewed = {
                 runInBackground { markLastDeployJournalReviewed() }
             },
-
             onRequestForceFullRedeploy = {
                 showForceFullRedeployConfirmDialog = true
             },
