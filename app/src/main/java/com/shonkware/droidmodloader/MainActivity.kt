@@ -42,6 +42,7 @@ import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiState
 import com.shonkware.droidmodloader.ui.workflow.PluginSyncWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PluginActionWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.InstallerWorkflowController
 
 class MainActivity : ComponentActivity() {
 
@@ -186,6 +187,15 @@ class MainActivity : ComponentActivity() {
             movePluginUp = { normalizedPath -> movePluginUp(normalizedPath) },
             movePluginDown = { normalizedPath -> movePluginDown(normalizedPath) },
             applyPluginOrder = { orderedPluginPaths -> applyPluginOrder(orderedPluginPaths) }
+        )
+    }
+
+    private val installerWorkflowController by lazy {
+        InstallerWorkflowController(
+            runInBackground = { task -> runInBackground(task) },
+            finalizeInstallerInstall = { finalizePendingInstallerInstall() },
+            cancelInstallerInstall = { cancelPendingInstallerInstall() },
+            toggleInstallerOption = { optionId -> toggleInstallerOption(optionId) }
         )
     }
 
@@ -388,13 +398,13 @@ class MainActivity : ComponentActivity() {
                 runInBackground { deleteProfile(profileId) }
             },
             onToggleInstallerOption = { optionId ->
-                toggleInstallerOption(optionId)
+                installerWorkflowController.toggleOption(optionId)
             },
             onConfirmInstaller = {
-                runInBackground { finalizePendingInstallerInstall() }
+                installerWorkflowController.finalizeInstall()
             },
             onCancelInstaller = {
-                runInBackground { cancelPendingInstallerInstall() }
+                installerWorkflowController.cancelInstall()
             },
             onToggleInstallerFullscreen = {
                 installerDialogFullscreen = !installerDialogFullscreen
@@ -2259,11 +2269,7 @@ class MainActivity : ComponentActivity() {
             syncPluginsFromCurrentState(engine)
 
             runOnUiThread {
-                pendingArchiveInstall = null
-                pendingInstallerArchiveRecordId = null
-                pendingInstallerSelectedOptionIds = emptySet()
-                showInstallerDialog = false
-                installerDialogFullscreen = false
+                clearPendingInstallerState()
             }
 
             appendLog("Installed selected options for: ${prepared.archiveName}")
@@ -2357,14 +2363,17 @@ class MainActivity : ComponentActivity() {
         }
 
         runOnUiThread {
-            pendingArchiveInstall = null
-            pendingInstallerArchiveRecordId = null
-            pendingInstallerSelectedOptionIds = emptySet()
-            showInstallerDialog = false
-            installerDialogFullscreen = false
+            clearPendingInstallerState()
         }
 
         updateLastOperationStatus("Installer cancelled.")
+    }
+    private fun clearPendingInstallerState() {
+        pendingArchiveInstall = null
+        pendingInstallerArchiveRecordId = null
+        pendingInstallerSelectedOptionIds = emptySet()
+        showInstallerDialog = false
+        installerDialogFullscreen = false
     }
 
     private fun openModFilePreview(modId: String) {
