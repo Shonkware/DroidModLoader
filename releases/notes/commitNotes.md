@@ -7,6 +7,7 @@ refactor: extract plugin action workflow controller
 refactor: extract installer option selection helper
 fix: move installer option tests to test source set
 fix: remove unused junit jupiter catalog entry
+refactor: extract mod action workflow controller
 
 
 

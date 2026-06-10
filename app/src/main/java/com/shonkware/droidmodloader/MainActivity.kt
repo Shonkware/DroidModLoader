@@ -44,6 +44,7 @@ import com.shonkware.droidmodloader.ui.workflow.PluginActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.InstallerWorkflowController
 import com.shonkware.droidmodloader.engine.install.InstallerOptionSelectionHelper
 import com.shonkware.droidmodloader.ui.workflow.ProfileWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.ModActionWorkflowController
 
 class MainActivity : ComponentActivity() {
 
@@ -215,6 +216,18 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val modActionWorkflowController by lazy {
+        ModActionWorkflowController(
+            runInBackground = { task -> runInBackground(task) },
+            onToggleModEnabled = { modId -> toggleModEnabled(modId) },
+            onMoveModUp = { modId -> moveModUp(modId) },
+            onMoveModDown = { modId -> moveModDown(modId) },
+            onRequestDeleteMod = { mod -> showDeleteConfirmDialog(mod) },
+            onViewModFiles = { modId -> openModFilePreview(modId) },
+            onApplyModOrder = { orderedModIds -> applyModOrder(orderedModIds) }
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -329,16 +342,16 @@ class MainActivity : ComponentActivity() {
                 pluginActionWorkflowController.writeLoadOrderFiles()
             },
             onToggleMod = { modId ->
-                runInBackground { toggleModEnabled(modId) }
+                modActionWorkflowController.toggleMod(modId)
             },
             onMoveModUp = { modId ->
-                runInBackground { moveModUp(modId) }
+                modActionWorkflowController.moveModUp(modId)
             },
             onMoveModDown = { modId ->
-                runInBackground { moveModDown(modId) }
+                modActionWorkflowController.moveModDown(modId)
             },
             onDeleteMod = { mod ->
-                showDeleteConfirmDialog(mod)
+                modActionWorkflowController.requestDeleteMod(mod)
             },
             onTogglePlugin = { normalizedPath ->
                 pluginActionWorkflowController.togglePlugin(normalizedPath)
@@ -424,7 +437,7 @@ class MainActivity : ComponentActivity() {
                 installerDialogFullscreen = !installerDialogFullscreen
             },
             onViewModFiles = { modId ->
-                runInBackground { openModFilePreview(modId) }
+                modActionWorkflowController.viewModFiles(modId)
             },
             onCloseModFilePreview = {
                 selectedModFilePreview = null
@@ -447,7 +460,7 @@ class MainActivity : ComponentActivity() {
                 fullscreenPanel = FullscreenPanel.NONE
             },
             onApplyModOrder = { orderedModIds ->
-                runInBackground { applyModOrder(orderedModIds) }
+                modActionWorkflowController.applyModOrder(orderedModIds)
             },
             onApplyPluginOrder = { orderedPluginPaths ->
                 pluginActionWorkflowController.applyPluginOrder(orderedPluginPaths)
