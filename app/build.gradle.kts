@@ -49,8 +49,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.junit.jupiter)
-    testImplementation(libs.junit)
+    testImplementation("org.junit.jupiter:junit-jupiter:5.14.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.14.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.0")
 
     // Provides real org.json classes for local JVM unit tests.
     testImplementation("org.json:json:20240303")
