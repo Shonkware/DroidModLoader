@@ -49,17 +49,15 @@ import com.shonkware.droidmodloader.ui.workflow.ArchiveImportWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.FolderPickMode
 import com.shonkware.droidmodloader.ui.workflow.FolderPickerWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DeploymentActionWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryWorkflowController
 
 class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "DroidModLoader"
     }
-
     private var secondScreenController: SecondScreenController? = null
-
     private var secondScreenEnabled by mutableStateOf(false)
-
     private var folderPickMode by mutableStateOf(FolderPickMode.ActiveDataFolder)
     private var setupComplete by mutableStateOf(false)
     private var activeProfileId by mutableStateOf<String?>(null)
@@ -73,22 +71,18 @@ class MainActivity : ComponentActivity() {
     private var setupRealDeployEnabled by mutableStateOf(false)
     private var operationInProgress by mutableStateOf(false)
     private var activeOperationText by mutableStateOf("")
-
     private var newProfileNameText by mutableStateOf("")
     private var newProfileGameId by mutableStateOf("skyrim_le")
     private var newProfileGameDisplayName by mutableStateOf("Skyrim Legendary Edition")
     private var newProfileTreeUriText by mutableStateOf("No folder selected")
     private var newProfileRealDeployEnabled by mutableStateOf(false)
-
     private var developerTapCount = 0
     private var developerModeEnabled by mutableStateOf(false)
     private var lastOperationStatus by mutableStateOf("Ready.")
-
     private var logText by mutableStateOf("")
     private var summaryText by mutableStateOf("Loading...")
     private var visibleMods by mutableStateOf<List<Mod>>(emptyList())
     private var visiblePlugins by mutableStateOf<List<PluginEntry>>(emptyList())
-
     private var gameOptions by mutableStateOf(listOf("skyrim_le", "fallout_nv"))
     private var selectedGameId by mutableStateOf("skyrim_le")
     private var targetPathText by mutableStateOf("")
@@ -96,31 +90,23 @@ class MainActivity : ComponentActivity() {
     private var selectedRootTreeUriText by mutableStateOf("No root folder selected")
     private var rootTargetPathText by mutableStateOf("")
     private var realDeployEnabledState by mutableStateOf(false)
-
     private var pendingArchiveInstall by mutableStateOf<PreparedArchiveInstall?>(null)
     private var pendingInstallerArchiveRecordId by mutableStateOf<String?>(null)
     private var pendingInstallerSelectedOptionIds by mutableStateOf<Set<String>>(emptySet())
     private var showInstallerDialog by mutableStateOf(false)
     private var installerDialogFullscreen by mutableStateOf(false)
-
     private var visibleModContentIndexes by mutableStateOf<Map<String, ModContentIndex>>(emptyMap())
-
     private var selectedModFilePreview by mutableStateOf<ModFilePreview?>(null)
     private var showModFilePreviewDialog by mutableStateOf(false)
     private var modFilePreviewFullscreen by mutableStateOf(false)
-
     private var fullscreenPanel by mutableStateOf(FullscreenPanel.NONE)
-
     private var overwriteEntries by mutableStateOf<List<OverwriteEntry>>(emptyList())
     private var showOverwriteDialog by mutableStateOf(false)
     private var overwriteBaselineExists by mutableStateOf(false)
     private var overwriteMessage by mutableStateOf("")
-
     private var deployRecoveryWarningText by mutableStateOf("")
     private var showDeployRecoveryDialog by mutableStateOf(false)
-
     private var showForceFullRedeployConfirmDialog by mutableStateOf(false)
-
     private val pickTargetFolderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -144,13 +130,11 @@ class MainActivity : ComponentActivity() {
         }
     }
     private val operationStatusController = OperationStatusController()
-
     private val pluginSyncWorkflowController = PluginSyncWorkflowController(
         createEngine = { createModEngineForWorkflows() },
         syncPluginsFromCurrentState = { engine -> syncPluginsFromCurrentState(engine) },
         refreshDashboard = { refreshDashboard() }
     )
-
     private val pluginActionWorkflowController by lazy {
         PluginActionWorkflowController(
             runInBackground = { task -> runInBackground(task) },
@@ -161,7 +145,6 @@ class MainActivity : ComponentActivity() {
             applyPluginOrder = { orderedPluginPaths -> applyPluginOrder(orderedPluginPaths) }
         )
     }
-
     private val installerWorkflowController by lazy {
         InstallerWorkflowController(
             runInBackground = { task -> runInBackground(task) },
@@ -170,7 +153,6 @@ class MainActivity : ComponentActivity() {
             toggleInstallerOption = { optionId -> toggleInstallerOption(optionId) }
         )
     }
-
     private val profileWorkflowController by lazy {
         ProfileWorkflowController(
             runInBackground = { task -> runInBackground(task) },
@@ -185,7 +167,6 @@ class MainActivity : ComponentActivity() {
             }
         )
     }
-
     private val modActionWorkflowController by lazy {
         ModActionWorkflowController(
             runInBackground = { task -> runInBackground(task) },
@@ -227,7 +208,6 @@ class MainActivity : ComponentActivity() {
             appendLog = { message -> appendLog(message) }
         )
     }
-
     private val deploymentActionWorkflowController by lazy {
         DeploymentActionWorkflowController(
             runInBackground = { task -> runInBackground(task) },
@@ -235,6 +215,28 @@ class MainActivity : ComponentActivity() {
             runForceFullRedeploy = { runForceFullRedeployWorkflow() },
             buildDeploymentPlan = { runDeploymentPlanDebugSummary() },
             buildFullRedeployPlan = { runFullRedeployPlanDebugSummary() }
+        )
+    }
+    private val deployRecoveryWorkflowController by lazy {
+        DeployRecoveryWorkflowController(
+            runInBackground = { task -> runInBackground(task) },
+            showRecoveryDetails = {
+                showDeployRecoveryDialog = true
+            },
+            hideRecoveryDetails = {
+                showDeployRecoveryDialog = false
+            },
+            dismissRecoveryWarning = {
+                deployRecoveryWarningText = ""
+                showDeployRecoveryDialog = false
+                appendLog("Dismissed previous deploy warning for this session.")
+            },
+            viewLastDeployJournal = {
+                runLastDeployJournalDebugSummary()
+            },
+            markDeployRecoveryReviewed = {
+                markLastDeployJournalReviewed()
+            }
         )
     }
 
@@ -497,21 +499,19 @@ class MainActivity : ComponentActivity() {
                 deploymentActionWorkflowController.buildFullRedeployPlan()
             },
             onViewLastDeployJournal = {
-                runInBackground { runLastDeployJournalDebugSummary() }
+                deployRecoveryWorkflowController.viewLastJournal()
             },
             onOpenDeployRecoveryDetails = {
-                showDeployRecoveryDialog = true
+                deployRecoveryWorkflowController.openRecoveryDetails()
             },
             onCloseDeployRecoveryDetails = {
-                showDeployRecoveryDialog = false
+                deployRecoveryWorkflowController.closeRecoveryDetails()
             },
             onDismissDeployRecoveryWarning = {
-                deployRecoveryWarningText = ""
-                showDeployRecoveryDialog = false
-                appendLog("Dismissed previous deploy warning for this session.")
+                deployRecoveryWorkflowController.dismissWarning()
             },
             onMarkDeployRecoveryReviewed = {
-                runInBackground { markLastDeployJournalReviewed() }
+                deployRecoveryWorkflowController.markReviewed()
             },
             onRequestForceFullRedeploy = {
                 showForceFullRedeployConfirmDialog = true
