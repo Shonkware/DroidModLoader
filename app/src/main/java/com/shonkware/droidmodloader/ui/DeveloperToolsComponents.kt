@@ -13,8 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.shonkware.droidmodloader.ui.theme.DmlDefaults
 import com.shonkware.droidmodloader.ui.theme.DmlColors
+import com.shonkware.droidmodloader.ui.theme.DmlDefaults
 
 @Composable
 fun DeveloperToolsCard(
@@ -99,7 +99,3 @@ fun DeveloperToolsCard(
         }
     }
 }
-
-
-
-
