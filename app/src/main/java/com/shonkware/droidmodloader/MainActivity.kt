@@ -43,6 +43,8 @@ import com.shonkware.droidmodloader.ui.workflow.PluginSyncWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PluginActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.InstallerWorkflowController
 import com.shonkware.droidmodloader.engine.install.InstallerOptionSelectionHelper
+import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
+import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
 import com.shonkware.droidmodloader.ui.workflow.ProfileWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.ModActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.ArchiveImportWorkflowController
@@ -287,6 +289,23 @@ class MainActivity : ComponentActivity() {
             }
         )
     }
+    private val profileStoragePaths by lazy {
+        ProfileStoragePaths(
+            filesDir = filesDir,
+            activeProfileIdProvider = { activeProfileId },
+            selectedGameIdProvider = { selectedGameId }
+        )
+    }
+
+    private val archiveImportFileStore by lazy {
+        ArchiveImportFileStore(
+            contentResolver = contentResolver,
+            externalFilesDirProvider = { getExternalFilesDir(null) },
+            profileInternalDirProvider = { profileStoragePaths.getProfileInternalDir() },
+            appendError = { message -> appendError(message) }
+        )
+    }
+
     private val previewDialogActionWorkflowController by lazy {
         PreviewDialogActionWorkflowController(
             toggleInstallerFullscreen = {
@@ -735,8 +754,8 @@ class MainActivity : ComponentActivity() {
             return null
         }
 
-        val profileInternalDir = getProfileInternalDir()
-        val profileStateDir = getProfileStateDir(externalBaseDir)
+        val profileInternalDir = profileStoragePaths.getProfileInternalDir()
+        val profileStateDir = profileStoragePaths.getProfileStateDir(externalBaseDir)
 
         val tempDir = File(profileInternalDir, "temp")
         val modsDir = File(profileInternalDir, "mods")
@@ -752,7 +771,7 @@ class MainActivity : ComponentActivity() {
 
         val deployDir = File(
             externalBaseDir,
-            "deploy_target/profiles/${getActiveProfileStorageKey()}/$selectedGameId/Data"
+            "deploy_target/profiles/${profileStoragePaths.getActiveProfileStorageKey()}/$selectedGameId/Data"
         )
 
         tempDir.mkdirs()
@@ -775,122 +794,6 @@ class MainActivity : ComponentActivity() {
             archiveLibraryDir = archiveLibraryDir,
             downloadedArchiveListFile = downloadedArchiveListFile
         )
-    }
-    private fun sanitizeStorageName(value: String): String {
-        return value
-            .replace(Regex("""[^A-Za-z0-9._-]+"""), "_")
-            .trim('_')
-            .ifBlank { "default" }
-    }
-    private fun getActiveProfileStorageKey(): String {
-        val profileId = activeProfileId
-
-        return if (!profileId.isNullOrBlank()) {
-            sanitizeStorageName(profileId)
-        } else {
-            sanitizeStorageName("unassigned_$selectedGameId")
-        }
-    }
-    private fun getProfileInternalDir(): File {
-        return File(filesDir, "profiles/${getActiveProfileStorageKey()}")
-    }
-    private fun getProfileStateDir(externalBaseDir: File): File {
-        return File(externalBaseDir, "state/profiles/${getActiveProfileStorageKey()}")
-    }
-    private fun copyUriToFile(uri: Uri, destinationFile: File): File {
-        destinationFile.parentFile?.mkdirs()
-
-        contentResolver.openInputStream(uri).use { input ->
-            if (input == null) {
-                throw IllegalStateException("Could not open input stream for selected file.")
-            }
-
-            destinationFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-
-        return destinationFile
-    }
-    private fun copyUriToTemporaryArchiveFile(uri: Uri, sanitizedName: String): File {
-        cleanOldTemporaryImportSources()
-
-        val tempSourceDir = File(getProfileInternalDir(), "temp/import_sources")
-        tempSourceDir.mkdirs()
-
-        val tempArchive = File(
-            tempSourceDir,
-            "${System.currentTimeMillis()}_$sanitizedName"
-        )
-
-        return copyUriToFile(uri, tempArchive)
-    }
-
-    private fun getArchiveLibraryDir(): File? {
-        val externalBaseDir = getExternalFilesDir(null)
-        if (externalBaseDir == null) {
-            appendError("External files directory is null")
-            return null
-        }
-
-        return File(externalBaseDir, "downloads/archive_library")
-    }
-
-    private fun uniqueFile(
-        directory: File,
-        preferredName: String
-    ): File {
-        val safeName = preferredName
-            .replace(Regex("""[\\/:*?"<>|]"""), "_")
-            .ifBlank { "imported_archive" }
-
-        val baseName = safeName.substringBeforeLast('.', safeName)
-        val extension = safeName.substringAfterLast('.', missingDelimiterValue = "")
-
-        var candidate = File(directory, safeName)
-        var index = 1
-
-        while (candidate.exists()) {
-            val nextName = if (extension.isBlank()) {
-                "$baseName ($index)"
-            } else {
-                "$baseName ($index).$extension"
-            }
-
-            candidate = File(directory, nextName)
-            index++
-        }
-
-        return candidate
-    }
-
-    private fun copyUriToArchiveLibraryFile(
-        uri: Uri,
-        displayName: String
-    ): File {
-        val archiveLibraryDir = getArchiveLibraryDir()
-            ?: throw IllegalStateException("Archive library directory is unavailable.")
-
-        archiveLibraryDir.mkdirs()
-
-        val destinationFile = uniqueFile(
-            directory = archiveLibraryDir,
-            preferredName = displayName
-        )
-
-        return copyUriToFile(uri, destinationFile)
-    }
-
-    private fun cleanOldTemporaryImportSources(maxAgeMillis: Long = 24L * 60L * 60L * 1000L) {
-        val tempSourceDir = File(getProfileInternalDir(), "temp/import_sources")
-        if (!tempSourceDir.exists()) return
-
-        val now = System.currentTimeMillis()
-
-        tempSourceDir.listFiles()
-            ?.filter { it.isFile }
-            ?.filter { now - it.lastModified() > maxAgeMillis }
-            ?.forEach { it.delete() }
     }
     private fun migrateLegacyGlobalStateIfNeeded() {
         val externalBaseDir = getExternalFilesDir(null)
@@ -938,9 +841,9 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val profileInternalDir = getProfileInternalDir()
+        val profileInternalDir = profileStoragePaths.getProfileInternalDir()
         val profileModsDir = File(profileInternalDir, "mods")
-        val profileStateDir = getProfileStateDir(externalBaseDir)
+        val profileStateDir = profileStoragePaths.getProfileStateDir(externalBaseDir)
 
         val profileAlreadyHasState =
             File(profileStateDir, "installed_mods.json").exists() ||
@@ -1054,7 +957,7 @@ class MainActivity : ComponentActivity() {
         val sanitizedName = fileName.replace(Regex("""[^\w.\- ]"""), "_")
 
         try {
-            val archiveLibraryFile = copyUriToArchiveLibraryFile(
+            val archiveLibraryFile = archiveImportFileStore.copyUriToArchiveLibraryFile(
                 uri = uri,
                 displayName = sanitizedName
             )
@@ -1531,7 +1434,7 @@ class MainActivity : ComponentActivity() {
                 usingRealPath -> config?.targetDataPath ?: "none"
                 else -> File(
                     getExternalFilesDir(null),
-                    "deploy_target/profiles/${getActiveProfileStorageKey()}/$selectedGameId/Data"
+                    "deploy_target/profiles/${profileStoragePaths.getActiveProfileStorageKey()}/$selectedGameId/Data"
                 ).absolutePath
             }
 
@@ -2586,9 +2489,9 @@ class MainActivity : ComponentActivity() {
             val externalBaseDir = getExternalFilesDir(null)
                 ?: throw IllegalStateException("External files directory is null.")
 
-            val profileInternalDir = getProfileInternalDir()
+            val profileInternalDir = profileStoragePaths.getProfileInternalDir()
             val modsDir = File(profileInternalDir, "mods")
-            val profileStateDir = getProfileStateDir(externalBaseDir)
+            val profileStateDir = profileStoragePaths.getProfileStateDir(externalBaseDir)
 
             val backupRootDir = File(profileStateDir, "repair_backups/v050_artifacts")
             val reportDir = File(profileStateDir, "repair_reports")
