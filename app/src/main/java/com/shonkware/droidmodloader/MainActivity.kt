@@ -53,6 +53,7 @@ import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DeveloperToolsWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.OverwriteActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.FullscreenPanelActionWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.PreviewDialogActionWorkflowController
 
 class MainActivity : ComponentActivity() {
 
@@ -286,6 +287,21 @@ class MainActivity : ComponentActivity() {
             }
         )
     }
+    private val previewDialogActionWorkflowController by lazy {
+        PreviewDialogActionWorkflowController(
+            toggleInstallerFullscreen = {
+                installerDialogFullscreen = !installerDialogFullscreen
+            },
+            closeModFilePreview = {
+                selectedModFilePreview = null
+                showModFilePreviewDialog = false
+                modFilePreviewFullscreen = false
+            },
+            toggleModFilePreviewFullscreen = {
+                modFilePreviewFullscreen = !modFilePreviewFullscreen
+            }
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -493,18 +509,16 @@ class MainActivity : ComponentActivity() {
                 installerWorkflowController.cancelInstall()
             },
             onToggleInstallerFullscreen = {
-                installerDialogFullscreen = !installerDialogFullscreen
+                previewDialogActionWorkflowController.toggleInstallerFullscreen()
             },
             onViewModFiles = { modId ->
                 modActionWorkflowController.viewModFiles(modId)
             },
             onCloseModFilePreview = {
-                selectedModFilePreview = null
-                showModFilePreviewDialog = false
-                modFilePreviewFullscreen = false
+                previewDialogActionWorkflowController.closeModFilePreview()
             },
             onToggleModFilePreviewFullscreen = {
-                modFilePreviewFullscreen = !modFilePreviewFullscreen
+                previewDialogActionWorkflowController.toggleModFilePreviewFullscreen()
             },
             onToggleSecondScreen = {
                 toggleSecondScreenPluginDisplay()
