@@ -16,7 +16,7 @@ Right now, Android Bethesda modding usually means copying files by hand, guessin
 
 Droid Mod Loader helps with things like:
 
-* Importing mod archives from your Android device
+* Browsing ZIP, 7Z, and RAR mod archives from a remembered Android folder
 * Keeping each installed mod in its own folder
 * Turning mods on and off
 * Keeping separate profiles for different setups
@@ -172,8 +172,8 @@ This is still early software. Back up important game folders before testing.
 The app already has early support for:
 
 * profile creation and switching
-* mod import
-* ZIP, 7z, and RAR archive handling basics. RAR5 support is still being worked on.
+* remembered archive-folder browsing, search, refresh, and folder switching
+* ZIP, 7Z, and RAR archive import basics. RAR5 support is still being worked on.
 * managed mod folders
 * mod enable and disable
 * mod priority order

@@ -4,73 +4,37 @@
 
 Active development.
 
-The latest pushed refactor baseline is commit `93842a6`
-(`refactor: extract pending installer workflow`).
+The current `main` baseline is merge commit `cf57394`
+(`Merge pull request #2 from CyberShonk/feat/archive-folder-browser`).
+Droid Mod Loader is being prepared for the `v0.6.0-beta` release.
 
-`MainActivity.kt` is approximately 2,194 lines at this baseline. The current
-cleanup remains focused on reducing its responsibilities without changing
-user-facing behavior.
+The archive-folder browser is now merged. The larger responsibility-extraction
+work remains incomplete, but the app can still be released while that cleanup
+continues later because the refactors are intended to preserve behavior.
 
 ## Current goal
 
-Apply and validate the deployment execution workflow extraction, then continue
-reducing `MainActivity` through cohesive, behavior-preserving extractions.
+Finish the `v0.6.0-beta` release preparation without mixing in additional
+refactors or unrelated features. Validate the merged application, test the new
+archive-folder workflow on a device, build the signed release APK, and publish
+accurate release notes.
 
 ## Last completed action
 
-Extracted pending installer execution from `MainActivity` into
-`PendingInstallerWorkflow`, with focused tests covering finalization, option
-selection, cancellation, cleanup, and failure behavior.
+Merged the archive-folder browser into `main` through pull request #2.
+
+The merged feature:
+
+- remembers a user-selected archive folder;
+- scans top-level ZIP, 7Z, and RAR files;
+- provides search, refresh, and folder switching;
+- shows current and previous installation state;
+- installs through the existing archive import and installer pipeline; and
+- preserves main-screen and fullscreen-list scroll state during the session.
 
 ## Last verified result
 
-A specific local build and test result has not yet been recorded in this file.
-
-Before accepting the next code-changing commit, record the result of:
-
-```bash
-./gradlew testDebugUnitTest
-./gradlew assembleDebug
-```
-
-Include the tested commit hash when this section is updated.
-
-## Current constraints
-
-- No UI redesign.
-- No feature removal.
-- No intentional behavior change during extraction refactors.
-- No dependency changes unless separately approved.
-- One cohesive responsibility area per commit.
-- Refactors may be moderately larger when the moved code belongs to the same
-  responsibility area.
-- Generate changes against the latest pushed commit or a current source ZIP,
-  never an older repository snapshot.
-- Provide a reviewable diff for every code-changing commit.
-- Explain every code-changing commit before acceptance.
-- Run unit tests and assemble the debug APK before accepting code changes.
-- Update documentation or the changelog only when structure, behavior,
-  release information, or documented process changes.
-- Update the Nexus Mods page whenever the app version changes.
-
-## Current risks and open work
-
-- `MainActivity.kt` still owns deployment-adjacent orchestration, dashboard
-  refresh/setup loading, plugin discovery, operation reporting, developer
-  tools, recovery summaries, and engine construction.
-- `ModEngine.kt` remains a separate large service-extraction project and
-  should not be mixed into the remaining `MainActivity` cleanup.
-- Archive extraction still needs broader 7z and RAR compatibility and more
-  robust failure handling.
-- Beginner-facing wording must distinguish the game root folder from the Data
-  folder clearly and accurately.
-
-## Next physical action
-
-Review and apply the deployment execution workflow patch against commit
-`93842a6`.
-
-Then run:
+The archive-folder browser working tree that became commit `4b63670` passed:
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -78,18 +42,66 @@ Then run:
 git diff --check
 ```
 
-If validation passes, manually test normal deployment and force-full-redeploy
-against a safe test target before committing.
+The final clean release validation on merged `main` still needs to be recorded
+before publishing `v0.6.0-beta`.
+
+## Current constraints
+
+- Keep release preparation separate from additional feature or refactor work.
+- Fix only release-blocking defects before publishing.
+- No dependency changes unless separately approved.
+- Generate changes against the latest pushed commit or a current source ZIP,
+  never an older repository snapshot.
+- Provide a reviewable diff for every code-changing commit.
+- Explain every code-changing commit before acceptance.
+- Run unit tests and assemble both debug and release APKs before publishing.
+- Update documentation or the changelog when structure, behavior, release
+  information, or documented process changes.
+- Update the Nexus Mods page whenever the app version changes.
+
+## Current risks and open work
+
+- Final fresh-install and upgrade testing for `v0.6.0-beta` is not yet recorded.
+- Archive extraction still needs broader 7Z and RAR compatibility and more
+  robust failure handling.
+- `MainActivity.kt` cleanup remains active after the release.
+- `ModEngine.kt` remains a separate large service-extraction project and should
+  not be mixed into release preparation.
+- Beginner-facing wording must continue to distinguish the Game Root from the
+  Data Folder clearly and accurately.
+
+## Next physical action
+
+Finish the version and documentation changes, then run:
+
+```bash
+./gradlew clean
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
+./gradlew assembleRelease
+git diff --check
+```
+
+After the builds pass, manually test at least:
+
+- a fresh installation;
+- an upgrade from `v0.5.5-beta`;
+- first-use archive-folder selection and permission persistence;
+- ZIP, 7Z, and RAR discovery;
+- refresh and folder switching;
+- simple and installer-driven archive installation;
+- profile, mod, plugin, and deployment basics; and
+- application launch from the signed release APK.
 
 ## Later
 
-- Finish the remaining `MainActivity` responsibility extractions.
+- Resume the remaining `MainActivity` responsibility extractions.
 - Plan `ModEngine` service extraction as a separate phase.
 - Improve archive extraction robustness and compatibility.
-- Review beginner-facing wording when touched by related work.
+- Continue improving beginner-facing storage and folder wording.
 - Perform a final integration and architecture review after the giant-file
   cleanup is complete.
 
 ## Last updated
 
-2026-06-15
+2026-06-16
