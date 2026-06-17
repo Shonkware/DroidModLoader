@@ -35,11 +35,13 @@ Use this checklist before uploading an APK publicly.
 Run before release:
 
 ./gradlew clean
+./gradlew testDebugUnitTest
 ./gradlew assembleDebug
 ./gradlew assembleRelease
 
 Confirm:
 
+- [ ] Unit tests succeed
 - [ ] Debug build succeeds
 - [ ] Release build succeeds
 - [ ] APK installs on test device
@@ -54,7 +56,10 @@ Minimum release test:
 - [ ] App icon appears correctly
 - [ ] Game target selection works
 - [ ] Target is remembered
-- [ ] Mod import works
+- [ ] Archive folder selection works and persists
+- [ ] Archive refresh and folder switching work
+- [ ] ZIP, 7Z, and RAR files are discovered as expected
+- [ ] Mod import works through the archive-folder workflow
 - [ ] Mod enable/disable works
 - [ ] Plugin scan works
 - [ ] Plugin enable/disable works
@@ -90,10 +95,12 @@ Confirm before release:
 - [ ] APK filename includes app name and version
 - [ ] APK is not committed to Git
 - [ ] Upload notes explain what changed
+- [ ] GitHub release notes match the changelog
+- [ ] Nexus Mods page is updated for the new version
 
 Suggested APK filename:
 
-DroidModLoader-v0.5.4-beta.apk
+DroidModLoader-v<version>.apk
 
 ## Release Notes Format
 
