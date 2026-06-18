@@ -1,40 +1,36 @@
 # Current Status
 
-## Status
+* **Mode:** Active development after the `v0.6.0-beta` release.
+* **Public version:** `v0.6.0-beta`
+* **Branch / baseline:** `main` at `191397a` (`fix: scope archive folder selection to profiles`)
+* **Repository state:** Local `main` matched `origin/main` with a clean working tree on 2026-06-17.
 
-Active development.
+## Current objective
 
-The current `main` baseline is merge commit `cf57394`
-(`Merge pull request #2 from CyberShonk/feat/archive-folder-browser`).
-Droid Mod Loader is being prepared for the `v0.6.0-beta` release.
+Restore accurate repository-controlled project state after the release, then resume only roadmap-aligned work.
 
-The archive-folder browser is now merged. The larger responsibility-extraction
-work remains incomplete, but the app can still be released while that cleanup
-continues later because the refactors are intended to preserve behavior.
+Before beginning another code change:
 
-## Current goal
+1. Review process documents and task lists for stale `v0.6.0-beta` release-preparation language.
+2. Clearly separate released `v0.6.0-beta` behavior from unreleased `v0.7.0` and `v0.8.0` plans.
+3. Select one bounded next DML task that follows the accepted roadmap.
 
-Finish the `v0.6.0-beta` release preparation without mixing in additional
-refactors or unrelated features. Validate the merged application, test the new
-archive-folder workflow on a device, build the signed release APK, and publish
-accurate release notes.
+## Completed most recently
 
-## Last completed action
+Published `v0.6.0-beta` and pushed commit `191397a`, which scopes archive-folder selection, persisted folder access, archive history, and related settings to individual profiles.
 
-Merged the archive-folder browser into `main` through pull request #2.
+The release includes the archive-folder browser workflow for:
 
-The merged feature:
+* selecting and retaining an archive folder;
+* discovering top-level ZIP, 7Z, and RAR archives;
+* searching and refreshing the archive list;
+* changing archive-folder locations;
+* installing archives through the existing import and installer pipeline; and
+* keeping archive settings and history isolated by profile.
 
-- remembers a user-selected archive folder;
-- scans top-level ZIP, 7Z, and RAR files;
-- provides search, refresh, and folder switching;
-- shows current and previous installation state;
-- installs through the existing archive import and installer pipeline; and
-- preserves main-screen and fullscreen-list scroll state during the session.
+## Last recorded validation
 
-## Last verified result
-
-The archive-folder browser working tree that became commit `4b63670` passed:
+The earlier archive-folder browser implementation recorded successful results for:
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -42,66 +38,59 @@ The archive-folder browser working tree that became commit `4b63670` passed:
 git diff --check
 ```
 
-The final clean release validation on merged `main` still needs to be recorded
-before publishing `v0.6.0-beta`.
+The exact final release validation result was not preserved in this file. Do not infer unrecorded test results.
+
+The repository itself was confirmed clean and synchronized with `origin/main` on 2026-06-17.
+
+## Next safe action
+
+Audit DML’s process documentation, task lists, and roadmap references for stale release-preparation state.
+
+Correct documentation only where it is outdated. Do not begin a new refactor or feature during that audit.
+
+Afterward, record one concrete next implementation task here.
 
 ## Current constraints
 
-- Keep release preparation separate from additional feature or refactor work.
-- Fix only release-blocking defects before publishing.
-- No dependency changes unless separately approved.
-- Generate changes against the latest pushed commit or a current source ZIP,
-  never an older repository snapshot.
-- Provide a reviewable diff for every code-changing commit.
-- Explain every code-changing commit before acceptance.
-- Run unit tests and assemble both debug and release APKs before publishing.
-- Update documentation or the changelog when structure, behavior, release
-  information, or documented process changes.
-- Update the Nexus Mods page whenever the app version changes.
+* Generate changes only against the latest local source.
+* Keep each commit focused on one coherent responsibility.
+* Explain code-changing commits before acceptance.
+* Provide a reviewable diff for every code change.
+* Run appropriate tests and builds before committing code.
+* Keep current released behavior separate from future plans.
+* Update documentation and changelogs when documented behavior changes.
+* Update the Nexus Mods page whenever the public app version changes.
+* Do not automatically commit, push, merge, tag, publish, release, or make destructive changes.
 
-## Current risks and open work
+## Known open work
 
-- Final fresh-install and upgrade testing for `v0.6.0-beta` is not yet recorded.
-- Archive extraction still needs broader 7Z and RAR compatibility and more
-  robust failure handling.
-- `MainActivity.kt` cleanup remains active after the release.
-- `ModEngine.kt` remains a separate large service-extraction project and should
-  not be mixed into release preparation.
-- Beginner-facing wording must continue to distinguish the Game Root from the
-  Data Folder clearly and accurately.
+* Continue the remaining `MainActivity.kt` responsibility extractions in bounded commits.
+* Treat `ModEngine.kt` service extraction as a separate later project.
+* Improve 7Z and RAR extraction compatibility and failure reporting.
+* Continue improving beginner-facing Game Root and Data Folder wording.
+* Reconcile planned TTW, game-folder validation, configuration-recipe, plugin-ordering, and deployment-output work with the version roadmap before implementation.
+* Keep guide documentation accurate for the currently released DML version.
 
-## Next physical action
+## Blockers
 
-Finish the version and documentation changes, then run:
+No repository blocker is currently recorded.
 
-```bash
-./gradlew clean
-./gradlew testDebugUnitTest
-./gradlew assembleDebug
-./gradlew assembleRelease
-git diff --check
-```
+The next implementation task should not be selected until stale process and roadmap state has been checked.
 
-After the builds pass, manually test at least:
+## Private and public boundary
 
-- a fresh installation;
-- an upgrade from `v0.5.5-beta`;
-- first-use archive-folder selection and permission persistence;
-- ZIP, 7Z, and RAR discovery;
-- refresh and folder switching;
-- simple and installer-driven archive installation;
-- profile, mod, plugin, and deployment basics; and
-- application launch from the signed release APK.
+Unreleased `v0.7.0` and `v0.8.0` functionality must be identified as planned rather than current behavior.
 
-## Later
+Private experiments, unpublished research, credentials, signing material, and private project context must not be added to the public repository.
 
-- Resume the remaining `MainActivity` responsibility extractions.
-- Plan `ModEngine` service extraction as a separate phase.
-- Improve archive extraction robustness and compatibility.
-- Continue improving beginner-facing storage and folder wording.
-- Perform a final integration and architecture review after the giant-file
-  cleanup is complete.
+## Parking lot
+
+* `ModEngine.kt` service extraction
+* broader archive-format hardening
+* additional game-specific validation
+* expanded deterministic workflow tooling
+* cross-project `workctl`, only after repository-local commands are proven
 
 ## Last updated
 
-2026-06-16
+2026-06-17
