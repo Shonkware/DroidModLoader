@@ -137,16 +137,28 @@ Start tests around dangerous logic first.
 
 ## Current JVM Unit Tests
 
-These tests run without an Android device.
+These tests run without an Android device. The exact test-file list is derived
+from source rather than duplicated as a hand-maintained table here.
 
-| Test File                      | Purpose                                                                |
-|--------------------------------|------------------------------------------------------------------------|
-| `PathUtilsTest`                | Verifies path normalization and ignored metadata paths                 |
-| `DeployFileClassifierTest`     | Verifies deploy scope classification and unsafe path blocking          |
-| `ModDisplayNameNormalizerTest` | Verifies archive/mod name cleanup                                      |
-| `PluginDiscoveryTest`          | Verifies plugin discovery, plugin type detection, and 1-based priority |
+Current coverage includes:
 
-Run with:
+- path normalization and deployment-scope classification;
+- profile storage paths and legacy-state migration;
+- plugin discovery;
+- archive-folder scanning, archive metadata, downloaded-archive records, and
+  Nexus URL parsing;
+- installer option selection and display-name normalization; and
+- archive, deployment, mod, plugin, pending-installer, and profile workflow
+  coordination.
+
+Inspect the exact current test files with:
+
+```bash
+find app/src/test -type f -name '*Test.kt' | sort
+```
+
+Run the JVM unit-test suite with:
+
 ```bash
 ./gradlew testDebugUnitTest
 ```

@@ -26,14 +26,23 @@ It should not directly own dangerous file logic.
 
 Important UI files:
 
-| File                              | Purpose                                 |
-|-----------------------------------|-----------------------------------------|
-| MainScreen.kt                     | Main app screen                         |
-| DashboardComponents.kt            | Dashboard cards, buttons, and status UI |
-| FullscreenPanel.kt                | Fullscreen panel layout                 |
-| SecondScreenController.kt         | Second-screen handling                  |
-| SecondScreenPluginPresentation.kt | Second-screen plugin UI                 |
-| theme/DmlTheme.kt                 | Theme styling                           |
+| File                              | Purpose                                                        |
+|-----------------------------------|----------------------------------------------------------------|
+| MainScreen.kt                     | Main screen state/action models and dashboard composition      |
+| DashboardStatusCards.kt           | Header, status, quick-start, and primary dashboard action cards |
+| ModsComponents.kt                 | Dashboard mod card, compact rows, and mod content summaries    |
+| PluginComponents.kt               | Dashboard plugin card and plugin rows                          |
+| DeploymentSettingsComponents.kt   | Deployment settings card                                       |
+| ReportComponents.kt               | Report card                                                    |
+| DeveloperToolsComponents.kt       | Developer-only dashboard tools                                 |
+| Recovery.kt                       | Deployment-recovery warning and recovery-tool cards            |
+| SetupProfileComponents.kt         | First-run setup and profile-management UI                      |
+| FullscreenPanelComponents.kt      | Fullscreen Mods and Plugins dialogs                            |
+| ArchiveLibraryComponents.kt       | Archive-folder setup and fullscreen Archive Library UI         |
+| FullscreenPanel.kt                | Shared fullscreen panel layout                                 |
+| SecondScreenController.kt         | Second-screen handling                                         |
+| SecondScreenPluginPresentation.kt | Second-screen plugin UI                                        |
+| theme/DmlTheme.kt                 | Theme styling                                                  |
 
 ## Engine Layer
 
@@ -138,12 +147,14 @@ Do not let architecture docs become fictional. If the code changes, update the d
 
 ## Archive Folder Browser
 
-The primary manual install source is one app-wide, user-selected Android Storage
-Access Framework folder.
+The primary manual install source for each profile is a user-selected Android
+Storage Access Framework folder.
 
 Responsibilities are separated as follows:
 
-- `engine/download/ArchiveFolderPreferences.kt` persists the selected tree URI.
+- `engine/download/ArchiveFolderPreferences.kt` persists the selected tree URI by
+  profile ID and migrates the former app-wide preference to the first profile
+  that reads it.
 - `engine/download/ArchiveFolderScanner.kt` performs a read-only, top-level scan
   for ZIP, 7Z, and RAR documents.
 - `ui/workflow/ArchiveBrowserWorkflow.kt` combines scanned files with profile
@@ -159,5 +170,6 @@ The browser must not duplicate archive extraction or installation logic. It send
 selected document URIs into the existing import workflow, which copies archives
 into DML-managed storage before installation.
 
-The selected folder is app-wide. Installed and previously installed status is
-calculated against the active profile.
+The selected folder, archive history, and installed-status calculation are
+profile-specific. Switching profiles loads that profile's folder selection
+without changing another profile's selection.
