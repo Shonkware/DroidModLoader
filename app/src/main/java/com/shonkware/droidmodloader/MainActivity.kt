@@ -10,24 +10,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import com.shonkware.droidmodloader.ui.theme.DmlTheme
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.model.Mod
-import com.shonkware.droidmodloader.engine.model.PluginEntry
-import com.shonkware.droidmodloader.ui.DashboardActions
-import com.shonkware.droidmodloader.ui.DashboardUiState
+import com.shonkware.droidmodloader.ui.MainActivityUiState
+import com.shonkware.droidmodloader.ui.MutableMainActivityUiState
+import com.shonkware.droidmodloader.ui.DirectFolderSelectionUiState
 import com.shonkware.droidmodloader.ui.DroidModLoaderScreen
+import com.shonkware.droidmodloader.ui.FullscreenPanel
 import com.shonkware.droidmodloader.engine.profile.ProfileRepositoryFactory
-import com.shonkware.droidmodloader.engine.model.GameProfile
-import com.shonkware.droidmodloader.engine.index.ModContentIndex
-import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
-import com.shonkware.droidmodloader.engine.index.ModFilePreview
 import com.shonkware.droidmodloader.ui.SecondScreenController
 import java.io.File
-import com.shonkware.droidmodloader.ui.FullscreenPanel
-import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import android.os.Looper
 import com.shonkware.droidmodloader.ui.workflow.OperationReporter
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
@@ -70,7 +62,6 @@ import com.shonkware.droidmodloader.engine.download.ArchiveFolderPreferences
 import com.shonkware.droidmodloader.engine.download.ArchiveFolderScanner
 import com.shonkware.droidmodloader.ui.workflow.ArchiveBrowserHistory
 import com.shonkware.droidmodloader.ui.workflow.ArchiveBrowserWorkflow
-import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
 import com.shonkware.droidmodloader.ui.workflow.FolderPickMode
 import com.shonkware.droidmodloader.ui.workflow.FolderPickerWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DirectFolderSelectionCoordinator
@@ -95,6 +86,7 @@ import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionCoordina
 import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.SecondScreenPluginCoordinator
 import com.shonkware.droidmodloader.ui.workflow.ActivityThreadRunner
+import com.shonkware.droidmodloader.ui.workflow.DashboardActionBindings
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessManager
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessPolicy
 import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowser
@@ -102,64 +94,12 @@ import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 import com.shonkware.droidmodloader.engine.storage.DirectStorageRootProvider
 import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActivityUiState() {
 
     companion object {
         private const val TAG = "DroidModLoader"
     }
     private var secondScreenController: SecondScreenController? = null
-    private var setupComplete by mutableStateOf(false)
-    private var activeProfileId by mutableStateOf<String?>(null)
-    private var profileNameText by mutableStateOf("Default")
-    private var profileOptions by mutableStateOf<List<GameProfile>>(emptyList())
-    private var activeProfileName by mutableStateOf("No profile")
-    private var showProfileDialog by mutableStateOf(false)
-    private var setupGameId by mutableStateOf("skyrim_le")
-    private var setupGameDisplayName by mutableStateOf("Skyrim Legendary Edition")
-    private var setupTargetPathText by mutableStateOf("")
-    private var setupRealDeployEnabled by mutableStateOf(false)
-    private var operationInProgress by mutableStateOf(false)
-    private var activeOperationText by mutableStateOf("")
-    private var newProfileNameText by mutableStateOf("")
-    private var newProfileGameId by mutableStateOf("skyrim_le")
-    private var newProfileGameDisplayName by mutableStateOf("Skyrim Legendary Edition")
-    private var newProfileDataPathText by mutableStateOf("No folder selected")
-    private var newProfileRealDeployEnabled by mutableStateOf(false)
-    private var developerTapCount = 0
-    private var developerModeEnabled by mutableStateOf(false)
-    private var lastOperationStatus by mutableStateOf("Ready.")
-    private var logText by mutableStateOf("")
-    private var summaryText by mutableStateOf("Loading...")
-    private var visibleMods by mutableStateOf<List<Mod>>(emptyList())
-    private var visiblePlugins by mutableStateOf<List<PluginEntry>>(emptyList())
-    private var gameOptions by mutableStateOf(listOf("skyrim_le", "fallout_nv"))
-    private var selectedGameId by mutableStateOf("skyrim_le")
-    private var targetPathText by mutableStateOf("")
-    private var selectedDataPathText by mutableStateOf("No folder selected")
-    private var selectedRootPathText by mutableStateOf("No root folder selected")
-    private var rootTargetPathText by mutableStateOf("")
-    private var dataPathReselectionRequired by mutableStateOf(false)
-    private var rootPathReselectionRequired by mutableStateOf(false)
-    private var realDeployEnabledState by mutableStateOf(false)
-    private var pendingArchiveInstall by mutableStateOf<PreparedArchiveInstall?>(null)
-    private var pendingInstallerArchiveRecordId by mutableStateOf<String?>(null)
-    private var pendingInstallerSelectedOptionIds by mutableStateOf<Set<String>>(emptySet())
-    private var showInstallerDialog by mutableStateOf(false)
-    private var installerDialogFullscreen by mutableStateOf(false)
-    private var visibleModContentIndexes by mutableStateOf<Map<String, ModContentIndex>>(emptyMap())
-    private var selectedModFilePreview by mutableStateOf<ModFilePreview?>(null)
-    private var showModFilePreviewDialog by mutableStateOf(false)
-    private var modFilePreviewFullscreen by mutableStateOf(false)
-    private var fullscreenPanel by mutableStateOf(FullscreenPanel.NONE)
-    private var showArchiveFolderSetupDialog by mutableStateOf(false)
-    private var archiveBrowserState by mutableStateOf(ArchiveBrowserUiState())
-    private var overwriteEntries by mutableStateOf<List<OverwriteEntry>>(emptyList())
-    private var showOverwriteDialog by mutableStateOf(false)
-    private var overwriteBaselineExists by mutableStateOf(false)
-    private var overwriteMessage by mutableStateOf("")
-    private var deployRecoveryWarningText by mutableStateOf("")
-    private var showDeployRecoveryDialog by mutableStateOf(false)
-    private var showForceFullRedeployConfirmDialog by mutableStateOf(false)
     private val allFilesAccessManager by lazy {
         AllFilesAccessManager(applicationContext)
     }
@@ -904,6 +844,32 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val dashboardActionBindings by lazy {
+        DashboardActionBindings(
+            state = this,
+            archiveBrowserWorkflow = archiveBrowserWorkflow,
+            directFolderSelectionCoordinator = directFolderSelectionCoordinator,
+            deploymentActionWorkflowController = deploymentActionWorkflowController,
+            pluginActionWorkflowController = pluginActionWorkflowController,
+            modActionWorkflowController = modActionWorkflowController,
+            profileWorkflowController = profileWorkflowController,
+            installerWorkflowController = installerWorkflowController,
+            previewDialogActionWorkflowController = previewDialogActionWorkflowController,
+            secondScreenPluginCoordinator = secondScreenPluginCoordinator,
+            fullscreenPanelActionWorkflowController = fullscreenPanelActionWorkflowController,
+            overwriteActionWorkflowController = overwriteActionWorkflowController,
+            developerToolsWorkflowController = developerToolsWorkflowController,
+            deployRecoveryWorkflowController = deployRecoveryWorkflowController,
+            activityThreadRunner = activityThreadRunner,
+            profileContentInspectionCoordinator = profileContentInspectionCoordinator,
+            pluginSyncWorkflowController = pluginSyncWorkflowController,
+            loadSelectedGameConfigIntoUi = ::loadSelectedGameConfigIntoUi,
+            shareLogs = ::shareLogs,
+            requestAllFilesAccess = ::requestAllFilesAccess,
+            appendLog = ::appendLog
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         directFolderSelectionCoordinator.refreshAccessState()
@@ -911,8 +877,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             DmlTheme {
                 DroidModLoaderScreen(
-                    state = buildUiState(),
-                    actions = buildUiActions()
+                    state = toDashboardUiState(
+                        secondScreenEnabled = secondScreenPluginCoordinator.enabled,
+                        allFilesAccessRequired = android.os.Build.VERSION.SDK_INT >= AllFilesAccessPolicy.ANDROID_11_API_LEVEL,
+                        directFolderState = DirectFolderSelectionUiState(
+                            allFilesAccessGranted = directFolderSelectionCoordinator.allFilesAccessGranted,
+                            showBrowser = directFolderSelectionCoordinator.showBrowser,
+                            browserTitle = directFolderSelectionCoordinator.browserTitle,
+                            browserRequiresWritable = directFolderSelectionCoordinator.browserRequiresWritable,
+                            browserState = directFolderSelectionCoordinator.browserState
+                        )
+                    ),
+                    actions = dashboardActionBindings.build()
                 )
             }
         }
@@ -938,287 +914,6 @@ class MainActivity : ComponentActivity() {
     }
 
 
-
-    private fun buildUiState(): DashboardUiState {
-        return DashboardUiState(
-            appName = "Droid Mod Loader",
-            versionLabel = "Version 0.6.0 Beta",
-            developerModeEnabled = developerModeEnabled,
-            lastOperationStatus = lastOperationStatus,
-            summaryText = summaryText,
-            mods = visibleMods,
-            plugins = visiblePlugins,
-            gameOptions = gameOptions,
-            selectedGameId = selectedGameId,
-            selectedDataPathText = selectedDataPathText,
-            realDeployEnabled = realDeployEnabledState,
-            logText = logText,
-            setupComplete = setupComplete,
-            profileNameText = profileNameText,
-            setupGameId = setupGameId,
-            setupTargetPathText = setupTargetPathText,
-            setupRealDeployEnabled = setupRealDeployEnabled,
-            activeProfileName = activeProfileName,
-            profileOptions = profileOptions,
-            activeProfileId = activeProfileId,
-            newProfileNameText = newProfileNameText,
-            newProfileGameId = newProfileGameId,
-            newProfileRealDeployEnabled = newProfileRealDeployEnabled,
-            showProfileDialog = showProfileDialog,
-            newProfileDataPathText = newProfileDataPathText,
-            operationInProgress = operationInProgress,
-            activeOperationText = activeOperationText,
-            modContentIndexes = visibleModContentIndexes,
-            pendingArchiveInstall = pendingArchiveInstall,
-            selectedInstallerOptionIds = pendingInstallerSelectedOptionIds,
-            showInstallerDialog = showInstallerDialog,
-            installerDialogFullscreen = installerDialogFullscreen,
-            selectedModFilePreview = selectedModFilePreview,
-            showModFilePreviewDialog = showModFilePreviewDialog,
-            modFilePreviewFullscreen = modFilePreviewFullscreen,
-            secondScreenEnabled = secondScreenPluginCoordinator.enabled,
-            fullscreenPanel = fullscreenPanel,
-            overwriteEntries = overwriteEntries,
-            showOverwriteDialog = showOverwriteDialog,
-            overwriteBaselineExists = overwriteBaselineExists,
-            overwriteMessage = overwriteMessage,
-            selectedRootPathText = selectedRootPathText,
-
-            deployRecoveryWarningText = deployRecoveryWarningText,
-            showDeployRecoveryDialog = showDeployRecoveryDialog,
-
-            showForceFullRedeployConfirmDialog = showForceFullRedeployConfirmDialog,
-            showArchiveFolderSetupDialog = showArchiveFolderSetupDialog,
-            archiveBrowserState = archiveBrowserState,
-            allFilesAccessRequired = android.os.Build.VERSION.SDK_INT >= AllFilesAccessPolicy.ANDROID_11_API_LEVEL,
-            allFilesAccessGranted = directFolderSelectionCoordinator.allFilesAccessGranted,
-            showDirectFolderBrowser = directFolderSelectionCoordinator.showBrowser,
-            directFolderBrowserTitle = directFolderSelectionCoordinator.browserTitle,
-            directFolderBrowserRequiresWritable = directFolderSelectionCoordinator.browserRequiresWritable,
-            directFolderBrowserState = directFolderSelectionCoordinator.browserState
-        )
-    }
-
-    private fun buildUiActions(): DashboardActions {
-        return DashboardActions(
-            onVersionTap = {
-                developerTapCount++
-                if (!developerModeEnabled && developerTapCount >= 5) {
-                    developerModeEnabled = true
-                    appendLog("Developer tools unlocked.")
-                }
-            },
-            onInstallMod = {
-                archiveBrowserWorkflow.openBrowser()
-            },
-            onChooseArchiveFolder = {
-                showArchiveFolderSetupDialog = false
-                directFolderSelectionCoordinator.open(FolderPickMode.ArchiveLibraryFolder)
-            },
-            onDismissArchiveFolderSetup = {
-                showArchiveFolderSetupDialog = false
-            },
-            onRefreshArchiveFolder = {
-                archiveBrowserWorkflow.refresh()
-            },
-            onChangeArchiveFolder = {
-                directFolderSelectionCoordinator.open(FolderPickMode.ArchiveLibraryFolder)
-            },
-            onInstallArchiveFromFolder = { stableId ->
-                archiveBrowserWorkflow.installArchive(stableId)
-            },
-            onDeployMods = {
-                deploymentActionWorkflowController.deploy()
-            },
-            onWriteLoadOrderFiles = {
-                pluginActionWorkflowController.writeLoadOrderFiles()
-            },
-            onToggleMod = { modId ->
-                modActionWorkflowController.toggleMod(modId)
-            },
-            onMoveModUp = { modId ->
-                modActionWorkflowController.moveModUp(modId)
-            },
-            onMoveModDown = { modId ->
-                modActionWorkflowController.moveModDown(modId)
-            },
-            onDeleteMod = { mod ->
-                modActionWorkflowController.requestDeleteMod(mod)
-            },
-            onTogglePlugin = { normalizedPath ->
-                pluginActionWorkflowController.togglePlugin(normalizedPath)
-            },
-            onMovePluginUp = { normalizedPath ->
-                pluginActionWorkflowController.movePluginUp(normalizedPath)
-            },
-            onMovePluginDown = { normalizedPath ->
-                pluginActionWorkflowController.movePluginDown(normalizedPath)
-            },
-            onSelectGame = { gameId ->
-                selectedGameId = gameId
-                loadSelectedGameConfigIntoUi()
-                activityThreadRunner.runInBackground {
-                    profileContentInspectionCoordinator.ensureDataBaselineIfMissing("selected game changed")
-                    pluginSyncWorkflowController.syncWithNewEngineThenRefresh()
-                }
-            },
-            onRealDeployChanged = { enabled ->
-                realDeployEnabledState = enabled
-            },
-            onPickTargetFolder = {
-                directFolderSelectionCoordinator.open(
-                    if (setupComplete) {
-                        FolderPickMode.ActiveDataFolder
-                    } else {
-                        FolderPickMode.FirstSetupDataFolder
-                    }
-                )
-            },
-            onPickRootTargetFolder = {
-                directFolderSelectionCoordinator.open(FolderPickMode.ActiveGameRootFolder)
-            },
-            onSaveSettings = {
-                activityThreadRunner.runInBackground {
-                    profileWorkflowController.saveSettings()
-                }
-            },
-            onShareLogs = {
-                shareLogs()
-            },
-            onProfileNameChanged = { profileNameText = it },
-            onSetupGameChanged = { gameId ->
-                setupGameId = gameId
-                setupGameDisplayName = GameCatalog.displayName(gameId)
-            },
-            onSetupTargetPathChanged = { setupTargetPathText = it },
-            onSetupRealDeployChanged = { setupRealDeployEnabled = it },
-            onCompleteSetup = {
-                profileWorkflowController.completeSetup()
-            },
-            onSelectProfile = { profileId ->
-                profileWorkflowController.switchProfile(profileId)
-            },
-            onNewProfileNameChanged = { newProfileNameText = it },
-            onNewProfileGameChanged = { gameId ->
-                newProfileGameId = gameId
-                newProfileGameDisplayName = GameCatalog.displayName(gameId)
-            },
-            onNewProfileRealDeployChanged = { newProfileRealDeployEnabled = it },
-            onCreateAdditionalProfile = {
-                profileWorkflowController.createProfile()
-            },
-            onOpenProfileDialog = {
-                showProfileDialog = true
-            },
-            onCloseProfileDialog = {
-                showProfileDialog = false
-            },
-            onPickNewProfileTargetFolder = {
-                directFolderSelectionCoordinator.open(FolderPickMode.NewProfileDataFolder)
-            },
-            onDeleteProfile = { profileId ->
-                profileWorkflowController.deleteProfile(profileId)
-            },
-            onToggleInstallerOption = { optionId ->
-                installerWorkflowController.toggleOption(optionId)
-            },
-            onConfirmInstaller = {
-                installerWorkflowController.finalizeInstall()
-            },
-            onCancelInstaller = {
-                installerWorkflowController.cancelInstall()
-            },
-            onToggleInstallerFullscreen = {
-                previewDialogActionWorkflowController.toggleInstallerFullscreen()
-            },
-            onViewModFiles = { modId ->
-                modActionWorkflowController.viewModFiles(modId)
-            },
-            onCloseModFilePreview = {
-                previewDialogActionWorkflowController.closeModFilePreview()
-            },
-            onToggleModFilePreviewFullscreen = {
-                previewDialogActionWorkflowController.toggleModFilePreviewFullscreen()
-            },
-            onToggleSecondScreen = {
-                secondScreenPluginCoordinator.toggle()
-            },
-            onOpenModsFullscreen = {
-                fullscreenPanelActionWorkflowController.openModsFullscreen()
-            },
-            onOpenPluginsFullscreen = {
-                fullscreenPanelActionWorkflowController.openPluginsFullscreen()
-            },
-            onCloseFullscreenPanel = {
-                fullscreenPanelActionWorkflowController.closeFullscreenPanel()
-            },
-            onApplyModOrder = { orderedModIds ->
-                fullscreenPanelActionWorkflowController.applyModOrder(orderedModIds)
-            },
-            onApplyPluginOrder = { orderedPluginPaths ->
-                fullscreenPanelActionWorkflowController.applyPluginOrder(orderedPluginPaths)
-            },
-            onOpenOverwriteFolder = {
-                overwriteActionWorkflowController.openOverwriteFolder()
-            },
-            onCloseOverwriteFolder = {
-                overwriteActionWorkflowController.closeOverwriteFolder()
-            },
-            onBuildResolvedDataGraph = {
-                developerToolsWorkflowController.buildResolvedDataGraph()
-            },
-            onBuildDeploymentPlan = {
-                deploymentActionWorkflowController.buildDeployPlan()
-            },
-            onShowArchiveLibrarySummary = {
-                developerToolsWorkflowController.showArchiveLibrarySummary()
-            },
-            onBuildFullRedeployPlan = {
-                deploymentActionWorkflowController.buildFullRedeployPlan()
-            },
-            onViewLastDeployJournal = {
-                deployRecoveryWorkflowController.viewLastJournal()
-            },
-            onOpenDeployRecoveryDetails = {
-                deployRecoveryWorkflowController.openRecoveryDetails()
-            },
-            onCloseDeployRecoveryDetails = {
-                deployRecoveryWorkflowController.closeRecoveryDetails()
-            },
-            onDismissDeployRecoveryWarning = {
-                deployRecoveryWorkflowController.dismissWarning()
-            },
-            onMarkDeployRecoveryReviewed = {
-                deployRecoveryWorkflowController.markReviewed()
-            },
-            onRequestForceFullRedeploy = {
-                showForceFullRedeployConfirmDialog = true
-            },
-            onConfirmForceFullRedeploy = {
-                showForceFullRedeployConfirmDialog = false
-                deploymentActionWorkflowController.forceFullRedeploy()
-            },
-            onCancelForceFullRedeploy = {
-                showForceFullRedeployConfirmDialog = false
-            },
-            onRequestAllFilesAccess = {
-                requestAllFilesAccess()
-            },
-            onDirectFolderBrowserOpenPath = { path ->
-                directFolderSelectionCoordinator.openPath(path)
-            },
-            onDirectFolderBrowserNavigateUp = {
-                directFolderSelectionCoordinator.navigateUp()
-            },
-            onDirectFolderBrowserSelectCurrent = {
-                directFolderSelectionCoordinator.selectCurrent()
-            },
-            onDirectFolderBrowserCancel = {
-                directFolderSelectionCoordinator.cancel()
-            }
-        )
-
-    }
 
     private fun initializeComposeUi() {
         activityThreadRunner.runInBackground {
