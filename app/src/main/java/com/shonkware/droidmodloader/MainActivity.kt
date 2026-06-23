@@ -21,7 +21,6 @@ import com.shonkware.droidmodloader.ui.DashboardUiState
 import com.shonkware.droidmodloader.ui.DroidModLoaderScreen
 import com.shonkware.droidmodloader.engine.profile.ProfileRepositoryFactory
 import com.shonkware.droidmodloader.engine.model.GameProfile
-import com.shonkware.droidmodloader.engine.model.AppSetupState
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
@@ -34,8 +33,16 @@ import java.util.concurrent.CountDownLatch
 import com.shonkware.droidmodloader.ui.workflow.OperationReporter
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiState
+import com.shonkware.droidmodloader.ui.workflow.GameCatalog
+import com.shonkware.droidmodloader.ui.workflow.GameConfigurationEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.GameConfigurationInput
+import com.shonkware.droidmodloader.ui.workflow.GameConfigurationWorkflow
 import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiState
+import com.shonkware.droidmodloader.ui.workflow.ProfileStartupRepositoryAdapter
+import com.shonkware.droidmodloader.ui.workflow.ProfileStartupWorkflow
+import com.shonkware.droidmodloader.ui.workflow.PriorityNormalizationEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.PriorityNormalizationWorkflow
 import com.shonkware.droidmodloader.ui.workflow.PluginSyncWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PluginSynchronizationEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.PluginSynchronizationWorkflow
@@ -358,7 +365,7 @@ class MainActivity : ComponentActivity() {
     private val profileManagementWorkflow by lazy {
         ProfileManagementWorkflow(
             repositoryProvider = { profileRepositoryFactory.create() },
-            gameDisplayNameProvider = { gameId -> getGameDisplayName(gameId) },
+            gameDisplayNameProvider = GameCatalog::displayName,
             firstSetupInputProvider = {
                 FirstSetupInput(
                     profileNameText = profileNameText,
@@ -562,6 +569,11 @@ class MainActivity : ComponentActivity() {
         )
     }
     private val dashboardRefreshWorkflow = DashboardRefreshWorkflow()
+    private val gameConfigurationWorkflow = GameConfigurationWorkflow()
+    private val profileStartupWorkflow = ProfileStartupWorkflow()
+    private val priorityNormalizationWorkflow by lazy {
+        PriorityNormalizationWorkflow { message -> appendLog(message) }
+    }
     private val deploymentExecutionWorkflow by lazy {
         DeploymentExecutionWorkflow(
             isOperationInProgress = { operationInProgress },
@@ -1040,7 +1052,7 @@ class MainActivity : ComponentActivity() {
             onProfileNameChanged = { profileNameText = it },
             onSetupGameChanged = { gameId ->
                 setupGameId = gameId
-                setupGameDisplayName = getGameDisplayName(gameId)
+                setupGameDisplayName = GameCatalog.displayName(gameId)
             },
             onSetupTargetPathChanged = { setupTargetPathText = it },
             onSetupRealDeployChanged = { setupRealDeployEnabled = it },
@@ -1053,7 +1065,7 @@ class MainActivity : ComponentActivity() {
             onNewProfileNameChanged = { newProfileNameText = it },
             onNewProfileGameChanged = { gameId ->
                 newProfileGameId = gameId
-                newProfileGameDisplayName = getGameDisplayName(gameId)
+                newProfileGameDisplayName = GameCatalog.displayName(gameId)
             },
             onNewProfileRealDeployChanged = { newProfileRealDeployEnabled = it },
             onCreateAdditionalProfile = {
@@ -1311,189 +1323,94 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshGameOptions() {
         runOnUiThread {
-            gameOptions = getSupportedGameIds()
-
-            if (selectedGameId !in gameOptions) {
-                selectedGameId = "skyrim_le"
-            }
-
-            if (setupGameId !in gameOptions) {
-                setupGameId = "skyrim_le"
-                setupGameDisplayName = getGameDisplayName(setupGameId)
-            }
-
-            if (newProfileGameId !in gameOptions) {
-                newProfileGameId = "skyrim_le"
-                newProfileGameDisplayName = getGameDisplayName(newProfileGameId)
-            }
+            gameOptions = GameCatalog.supportedGameIds
+            selectedGameId = GameCatalog.supportedOrDefault(selectedGameId)
+            setupGameId = GameCatalog.supportedOrDefault(setupGameId)
+            setupGameDisplayName = GameCatalog.displayName(setupGameId)
+            newProfileGameId = GameCatalog.supportedOrDefault(newProfileGameId)
+            newProfileGameDisplayName = GameCatalog.displayName(newProfileGameId)
         }
     }
+
     private fun loadSelectedGameConfigIntoUi() {
+        val engine = profileScopedEngineFactory.create() ?: return
         val activeProfile = profileOptions.firstOrNull { it.profileId == activeProfileId }
-
-        if (activeProfile != null && selectedGameId != activeProfile.gameId) {
-            appendLog(
-                "Corrected selectedGameId from $selectedGameId to active profile game ${activeProfile.gameId}"
-            )
-            selectedGameId = activeProfile.gameId
-        }
-
-        val engine = profileScopedEngineFactory.create() ?: return
-        val config = engine.getGameDeploymentConfig(selectedGameId)
-        if (config == null) {
-            val fallbackProfile = activeProfile?.takeIf { it.gameId == selectedGameId }
-
-            if (fallbackProfile != null) {
-                val recoveredConfig = DeploymentConfigUiMapper.configFromProfile(fallbackProfile)
-
-                val configs = engine.loadGameDeploymentConfigs().toMutableList()
-                val index = configs.indexOfFirst { it.gameId == recoveredConfig.gameId }
-
-                if (index >= 0) {
-                    configs[index] = recoveredConfig
-                } else {
-                    configs.add(recoveredConfig)
-                }
-
-                engine.saveGameDeploymentConfigs(configs)
-
-                runOnUiThread {
-                    applyDeploymentConfigUiState(
-                        DeploymentConfigUiMapper.fromConfig(recoveredConfig)
-                    )
-                }
-
-                appendLog("Recovered missing config from active profile: $recoveredConfig")
-                return
-            }
-
-            runOnUiThread {
-                applyDeploymentConfigUiState(
-                    DeploymentConfigUiMapper.emptyState()
-                )
-            }
-
-            appendLog("No config found for gameId=$selectedGameId")
-            return
-        }
-
-        runOnUiThread {
-            applyDeploymentConfigUiState(
-                DeploymentConfigUiMapper.fromConfig(config)
-            )
-        }
-
-        appendLog("Loaded config into Compose state: $config")
-    }
-    private fun saveSelectedGameConfigFromUi() {
-        val engine = profileScopedEngineFactory.create() ?: return
-
-        val existingConfigs = engine.loadGameDeploymentConfigs().toMutableList()
-
-        val updatedConfig = DeploymentConfigUiMapper.configFromUi(
-            selectedGameId = selectedGameId,
-            displayName = getGameDisplayName(selectedGameId),
-            targetPathText = targetPathText,
-            realDeployEnabled = realDeployEnabledState,
-            rootTargetPathText = rootTargetPathText,
-            dataPathReselectionRequired = dataPathReselectionRequired,
-            rootPathReselectionRequired = rootPathReselectionRequired
+        val previousGameId = selectedGameId
+        val result = gameConfigurationWorkflow.load(
+            engine = GameConfigurationEngineAdapter(engine),
+            activeProfile = activeProfile,
+            selectedGameId = selectedGameId
         )
 
-        val index = existingConfigs.indexOfFirst { it.gameId == selectedGameId }
-        if (index >= 0) {
-            existingConfigs[index] = updatedConfig
-        } else {
-            existingConfigs.add(updatedConfig)
+        if (previousGameId != result.selectedGameId) {
+            appendLog(
+                "Corrected selectedGameId from $previousGameId to active profile game ${result.selectedGameId}"
+            )
         }
+        runOnUiThread {
+            selectedGameId = result.selectedGameId
+            applyDeploymentConfigUiState(result.uiState)
+        }
+        appendLog(result.logMessage)
+    }
 
-        engine.saveGameDeploymentConfigs(existingConfigs)
+    private fun saveSelectedGameConfigFromUi() {
+        val engine = profileScopedEngineFactory.create() ?: return
+        val updatedConfig = gameConfigurationWorkflow.save(
+            engine = GameConfigurationEngineAdapter(engine),
+            input = GameConfigurationInput(
+                selectedGameId = selectedGameId,
+                targetDataPath = targetPathText,
+                realDeployEnabled = realDeployEnabledState,
+                targetRootPath = rootTargetPathText,
+                dataPathReselectionRequired = dataPathReselectionRequired,
+                rootPathReselectionRequired = rootPathReselectionRequired
+            )
+        )
         appendLog("Saved updated config from Compose state: $updatedConfig")
     }
 
+
     private fun migratePrioritySpacingIfNeeded() {
         val engine = profileScopedEngineFactory.create() ?: return
-
-        val mods = engine.getCurrentMods().sortedBy { it.priority }
-        val normalizedMods = engine.normalizeModPriorities(mods)
-
-        if (mods != normalizedMods) {
-            engine.saveCurrentMods(normalizedMods)
-            appendLog("Migrated mod priorities to sequential 1-based ordering.")
-        }
-
-        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }
-        val normalizedPlugins = engine.normalizePluginPriorities(plugins)
-
-        if (plugins != normalizedPlugins) {
-            engine.saveCurrentPlugins(normalizedPlugins)
-            appendLog("Migrated plugin priorities to sequential 1-based ordering.")
-        }
+        priorityNormalizationWorkflow.migrateIfNeeded(
+            PriorityNormalizationEngineAdapter(engine)
+        )
     }
 
 
 
-    private fun getGameDisplayName(gameId: String): String {
-        return when (gameId) {
-            "skyrim_le" -> "Skyrim Legendary Edition"
-            "oblivion" -> "Oblivion"
-            "fallout_3" -> "Fallout 3"
-            "fallout_nv" -> "Fallout New Vegas"
-            "fallout_4" -> "Fallout 4"
-            else -> gameId
-        }
-    }
+
+
 
     private fun loadSetupState() {
-        val repo = profileRepositoryFactory.create() ?: return
-
-        val loadedState = repo.loadSetupState()
-        val profiles = repo.loadProfiles()
-
-        var resolvedState = loadedState
-        var activeProfile = profiles.firstOrNull { it.profileId == loadedState.activeProfileId }
-
-        if (activeProfile == null && profiles.isNotEmpty()) {
-            val fallback = profiles.first()
-            activeProfile = fallback
-
-            resolvedState = AppSetupState(
-                setupComplete = true,
-                activeProfileId = fallback.profileId
-            )
-
-            repo.saveSetupState(resolvedState)
-            appendLog("Recovered missing active profile using: ${fallback.profileName}")
-        }
+        val repository = profileRepositoryFactory.create() ?: return
+        val result = profileStartupWorkflow.load(
+            ProfileStartupRepositoryAdapter(repository)
+        )
+        result.recoveryLogMessage?.let(::appendLog)
 
         runOnUiThreadBlocking {
-            setupComplete = resolvedState.setupComplete
-            activeProfileId = resolvedState.activeProfileId
-            activeProfileName = ProfileConfigUiMapper.activeProfileName(activeProfile)
-            profileOptions = profiles
-
-            if (resolvedState.setupComplete && activeProfile != null) {
-                applyProfileConfigUiState(
-                    ProfileConfigUiMapper.fromProfile(activeProfile)
-                )
-                visibleMods = emptyList()
-                visiblePlugins = emptyList()
-                visibleModContentIndexes = emptyMap()
-            } else {
-                applyProfileConfigUiState(
-                    ProfileConfigUiMapper.emptyState()
-                )
-
-                visibleMods = emptyList()
-                visiblePlugins = emptyList()
-                visibleModContentIndexes = emptyMap()
-            }
+            setupComplete = result.setupState.setupComplete
+            activeProfileId = result.setupState.activeProfileId
+            activeProfileName = ProfileConfigUiMapper.activeProfileName(result.activeProfile)
+            profileOptions = result.profiles
+            applyProfileConfigUiState(
+                result.activeProfile
+                    ?.takeIf { result.setupState.setupComplete }
+                    ?.let(ProfileConfigUiMapper::fromProfile)
+                    ?: ProfileConfigUiMapper.emptyState()
+            )
+            visibleMods = emptyList()
+            visiblePlugins = emptyList()
+            visibleModContentIndexes = emptyMap()
         }
 
-        appendLog("Loaded setup state: $resolvedState")
-        appendLog("Loaded profile count: ${profiles.size}")
+        appendLog("Loaded setup state: ${result.setupState}")
+        appendLog("Loaded profile count: ${result.profiles.size}")
         appendProfileContextLog()
     }
+
 
     private fun appendProfileContextLog() {
         appendLog(
@@ -1598,14 +1515,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun getSupportedGameIds(): List<String> {
-        return listOf(
-            "skyrim_le",
-            "oblivion",
-            "fallout_3",
-            "fallout_nv"
-        )
-    }
+
 
     private fun runOnUiThreadBlocking(action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
