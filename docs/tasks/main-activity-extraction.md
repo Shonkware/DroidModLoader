@@ -2,12 +2,13 @@
 
 ## Status
 
-Active.
+Complete.
 
 ## Goal
 
-Finish the long-running responsibility extraction from `MainActivity.kt`
-without changing user-visible behavior. `MainActivity` should remain the Android
+Finish the long-running responsibility extraction from `MainActivity.kt` while
+preserving current behavior except for the explicitly approved removal of the obsolete
+v0.5.0 developer repair action. `MainActivity` should remain the Android
 lifecycle and composition root while focused classes own reusable state mapping,
 startup/session coordination, logging/status reporting, diagnostics, direct
 folder selection, and dashboard refresh behavior.
@@ -28,42 +29,46 @@ The extraction must preserve behavior covered by:
 - `REQ-UI-001` and `REQ-UI-002`; and
 - `REQ-STORAGE-001` and `REQ-STORAGE-002`.
 
-No requirement is intentionally changed by this task.
+No supported product requirement is intentionally changed by this task. The removed
+v0.5.0 repair command was obsolete developer-only compatibility tooling.
 
-## Current problem
+## Completed result
 
-`MainActivity.kt` is still more than 2,200 lines and owns several unrelated
-responsibilities in addition to Android lifecycle wiring:
+The activity was reduced from more than 2,200 lines to a composition-root file
+whose remaining bulk is top-level construction and dependency wiring. Reusable
+behavior now lives in focused classes rather than private activity methods.
 
-- Compose state projection and action construction;
-- operation status and file-backed session logging;
-- `ModEngine` and profile repository construction;
-- startup/profile/game-configuration hydration;
-- dashboard refresh and plugin synchronization;
-- developer diagnostics and support-report assembly;
-- direct folder browser and all-files permission coordination;
-- second-screen state decisions; and
-- obsolete v0.5.0 artifact repair tooling.
+Key ownership after extraction:
 
-The existing workflow classes and controllers already provide useful seams. The
-remaining extraction should extend those patterns rather than introduce a new
-all-purpose coordinator.
+- `MainActivityUiState.kt` owns mutable activity-scoped Compose state and the
+  immutable `DashboardUiState` projection.
+- `DashboardActionBindings.kt` maps UI callbacks to focused workflow controllers.
+- `OperationReporter.kt` and `SessionLogWriter.kt` own operation state and logs.
+- `ProfileSessionCoordinator.kt`, `AppStartupCoordinator.kt`, and
+  `SelectedFolderConfigurationCoordinator.kt` own startup and profile/config
+  orchestration.
+- `DashboardRefreshCoordinator.kt` and `PluginSynchronizationWorkflow.kt` own
+  dashboard and plugin refresh coordination.
+- focused diagnostics, recovery, direct-folder, content-inspection,
+  second-screen, and thread coordinators own their named responsibilities.
+- profile-scoped engine and repository factories own construction details.
 
-## Planned commit boundaries
+`MainActivity` retains lifecycle callbacks, Activity Result registration,
+`setContent`, Android settings/share/dialog/toast launches, second-display
+attachment, and top-level dependency wiring.
 
-1. Remove the obsolete v0.5.0 artifact repair feature and its engine class.
-2. Extract operation status and session-log reporting.
-3. Extract profile-scoped engine/repository construction.
-4. Extract startup and profile/game configuration coordination.
-5. Extract dashboard refresh and plugin synchronization.
-6. Extract developer diagnostics and support-report assembly.
-7. Extract direct folder and all-files permission coordination.
-8. Extract dashboard state projection and remove residual activity helpers.
-9. Reconcile architecture/status documentation and record the final activity
-   responsibility boundary.
+## Completed commit boundaries
 
-Each commit must compile and pass the relevant focused tests before the next
-responsibility moves.
+1. Removed the obsolete v0.5.0 artifact repair feature and engine class.
+2. Extracted operation status and session-log reporting.
+3. Extracted profile-scoped engine/repository construction.
+4. Extracted plugin synchronization, dashboard refresh, diagnostics, recovery,
+   support reporting, direct-folder selection, profile inspection, second-screen
+   decisions, and thread execution.
+5. Extracted activity UI state projection and dashboard action binding.
+6. Extracted profile/session, selected-folder, and startup coordination.
+7. Removed residual operation-report forwarding helpers.
+8. Reconciled architecture/status documentation with the final boundary.
 
 ## Behavior that must remain unchanged
 
@@ -123,14 +128,16 @@ After the complete series:
 - coroutine/threading modernization; and
 - new features or opportunistic cleanup outside `MainActivity` ownership.
 
-## Done criteria
+## Completion criteria
 
-The task is complete when:
+The completed series satisfies the structural criteria:
 
 - obsolete v0.5.0 repair code is removed;
 - `MainActivity` primarily owns Android lifecycle, Activity Result launchers,
   `setContent`, top-level dependency wiring, and platform UI launches;
 - extracted classes each have one coherent responsibility;
-- no replacement god coordinator is introduced;
-- required checks pass; and
+- no replacement god coordinator was introduced; and
 - architecture/status documents describe the resulting ownership accurately.
+
+The live repository must still run the required Gradle checks and manual smoke
+checks when applying the patch series.

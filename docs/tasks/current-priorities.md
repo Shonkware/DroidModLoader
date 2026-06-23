@@ -15,29 +15,21 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Finish MainActivity responsibility extraction
+### 1. Define the ModEngine service-extraction boundary
 
-Requirement IDs:
+Reason:
 
-- REQ-PROFILE-001
-- REQ-PROFILE-002
-- REQ-DIAG-001
-- REQ-DIAG-002
-- REQ-UI-001
-- REQ-UI-002
-- REQ-STORAGE-001
-- REQ-STORAGE-002
+`ModEngine.kt` still owns too many engine responsibilities. It should be split
+through a separate patch-driven structural task rather than mixed with feature
+or integration work.
 
 Expected result:
 
-- Remove the obsolete v0.5.0 artifact repair feature.
-- Move remaining reusable startup, configuration, dashboard refresh, logging,
-  diagnostics, direct-folder, and UI-state projection responsibilities into
-  focused classes.
-- Leave `MainActivity` as the Android lifecycle and composition root without
-  changing behavior.
-
-Task definition: `docs/tasks/main-activity-extraction.md`.
+- Inventory current `ModEngine` responsibilities and call sites.
+- Identify coherent service boundaries and dependency direction.
+- Preserve behavior and public interfaces during extraction where practical.
+- Define small commit boundaries, focused tests, manual checks, and explicit
+  exclusions before changing engine code.
 
 ### 2. Improve archive extraction robustness
 
