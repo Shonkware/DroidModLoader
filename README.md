@@ -138,7 +138,7 @@ See [Current Status](CURRENT_STATUS.md),
 ## Community and support
 
 Support, testing, project discussion, and development updates are handled mainly
-through the [Droid Mod Loader Discord server](https://discord.gg/Q9dM262KRc).
+through the [Droid Mod Loader Discord server](https://discord.gg/wJnKUD64Nz).
 
 Useful bug reports include the Android device and version, the game and
 compatibility environment, the selected folders, installed mods, reproduction
