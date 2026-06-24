@@ -159,7 +159,7 @@ Decision:
 Official DML branding assets should be handmade, and editable source files should be preserved.
 
 Reason:
-The project needs consistent visual identity and should not depend on AI-generated official branding.
+The project needs a consistent visual identity and maintainable source assets.
 
 Result:
 Editable source assets live under `assets/source/`. Generated Android resources live under `app/src/main/res/`.
@@ -184,7 +184,7 @@ The UI should prioritize the basic path: select game, import mods, manage plugin
 Related:
 REQ-UI-001, REQ-UI-002.
 
-## 2026-06-06 - Project Work Must Use Tasks
+## 2026-06-06 - Non-Trivial Work Uses Scoped Tasks
 
 Status:
 Accepted.
@@ -193,10 +193,10 @@ Decision:
 New non-trivial work should start from a scoped task, GitHub Issue, or current-priorities entry.
 
 Reason:
-Scattered notes and vague coding prompts make the app harder to maintain.
+Unscoped work is harder to review, test, and maintain.
 
 Result:
-Future work should define the problem, desired behavior, requirement IDs, files likely affected, test steps, and done criteria before code changes begin.
+A scoped task should define the problem, desired behavior, requirement IDs, likely affected files, test steps, and done criteria before code changes begin.
 
 Related:
 docs/tasks/task-template.md, docs/tasks/current-priorities.md, docs/process/development-loop.md.

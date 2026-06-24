@@ -1,40 +1,47 @@
 # Droid Mod Loader Documentation
 
-This folder contains the project documentation for Droid Mod Loader.
+This directory contains user guides, project references, contributor notes, and
+release records for Droid Mod Loader.
 
-## Core Docs
+## User documentation
 
-| Document                                                                  | Purpose                                                                         |
-|---------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| [Vision](vision.md)                                                       | Defines what Droid Mod Loader is trying to become                               |
-| [Requirements](requirements.md)                                           | Defines what the app must do                                                    |
-| [Architecture](architecture.md)                                           | Explains the current project structure                                          |
-| [Decision Log](decisions.md)                                              | Records major technical and product decisions                                   |
-| [Testing](testing.md)                                                     | Tracks what needs to be tested                                                  |
-| [Direct Storage Benchmark](benchmarks/direct-storage.md)                   | Defines the repeatable SAF-baseline versus direct-path deployment benchmark     |
-| [Release Checklist](release-checklist.md)                                 | Lists checks before publishing builds                                           |
-| [Brand Assets](assets/brand-assets.md)                                    | Tracks icon and branding asset rules                                            |
-| [Changelog](../releases/changelog.md)                                     | Tracks release history                                                          |
-| [Development Loop](process/development-loop.md)                           | Defines the task to code to test to commit process                              |
-| [Roadmap vs Tasks](process/roadmap-vs-tasks.md)                           | Explains how roadmap items, backlog items, priorities, and issues are separated |
-| [Source Map](architecture/source-map.md)                                  | Maps source folders/files to responsibilities                                   |
-| [User Guide](user-guide.md)                                               | Explains normal app use                                                         |
-| [Troubleshooting](troubleshooting.md)                                     | Lists common problems and fixes                                                 |
-| [Glossary](glossary.md)                                                   | Defines app and modding terms                                                   |
-| [Versioning](process/versioning.md)                                       | Defines app version, versionCode, APK filename, and changelog rules             |
-| [Release Notes Template](../releases/templates/release-notes-template.md) | Template for public release notes                                               |
-| [APK Upload Checklist](../releases/templates/apk-upload-checklist.md)     | Checklist for public APK uploads                                                |
-| [Git Workflow](process/git-workflow.md)                                   | Defines branch, commit, push, and local environment rules                       |
-| [Task Template](tasks/task-template.md)                                   | Template for scoped implementation tasks                                        |
-| [Current Priorities](tasks/current-priorities.md)                         | Short active task list                                                          |
-| [Backlog](tasks/backlog.md)                                               | Rough future work and deferred ideas                                            |
+| Document | Purpose |
+|---|---|
+| [User Guide](user-guide.md) | Explains normal app use |
+| [Troubleshooting](troubleshooting.md) | Lists common problems and recovery steps |
+| [Glossary](glossary.md) | Defines app and Bethesda modding terms |
+| [Current Status](../CURRENT_STATUS.md) | Summarizes the latest release and current source state |
+| [Changelog](../releases/changelog.md) | Records public release history |
 
-## Development Rule
+## Project reference
 
-Before adding a new feature:
+| Document | Purpose |
+|---|---|
+| [Vision](vision.md) | Defines the product direction |
+| [Requirements](requirements.md) | Records required behavior |
+| [Architecture](architecture.md) | Explains the current project structure |
+| [Source Map](architecture/source-map.md) | Maps source areas to their responsibilities |
+| [Decision Log](decisions.md) | Records major technical and product decisions |
+| [Testing](testing.md) | Describes required validation |
+| [Direct Storage Benchmark](benchmarks/direct-storage.md) | Records the direct-path storage comparison |
+| [Roadmap](../ROADMAP.md) | Separates current, planned, and longer-term work |
+| [Brand Assets](assets/brand-assets.md) | Records visual asset sources and rules |
 
-1. Check the vision.
-2. Check the requirements.
-3. Decide whether the feature belongs now or later.
-4. Update the docs if the project direction changes.
-5. Test risky file behavior before release.
+## Contributor and release references
+
+| Document | Purpose |
+|---|---|
+| [Development Loop](process/development-loop.md) | Describes the normal change and review flow |
+| [Git Workflow](process/git-workflow.md) | Describes branch, commit, and push practices |
+| [Roadmap vs Tasks](process/roadmap-vs-tasks.md) | Explains planning document roles |
+| [Task Template](tasks/task-template.md) | Provides a reusable task outline |
+| [Current Priorities](tasks/current-priorities.md) | Lists the next focused work |
+| [Backlog](tasks/backlog.md) | Holds deferred and unscoped ideas |
+| [Versioning](process/versioning.md) | Defines version and APK naming rules |
+| [Release Checklist](release-checklist.md) | Lists checks before publishing a build |
+| [Release Notes Template](../releases/templates/release-notes-template.md) | Provides the public release-note structure |
+| [APK Upload Checklist](../releases/templates/apk-upload-checklist.md) | Lists checks for public APK uploads |
+
+Feature work should be checked against the vision, requirements, and roadmap.
+Update the relevant documentation when behavior or project direction changes,
+and test risky file operations before release.
