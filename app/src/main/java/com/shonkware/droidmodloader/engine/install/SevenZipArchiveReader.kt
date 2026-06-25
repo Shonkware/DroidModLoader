@@ -17,10 +17,6 @@ class SevenZipArchiveReader : ArchiveReader {
         private const val SEVEN_Z_MEMORY_LIMIT_KIB = DEFAULT_MEMORY_LIMIT_MIB * KIB_PER_MIB
     }
 
-    override fun supports(archive: File): Boolean {
-        return archive.extension.lowercase() == "7z"
-    }
-
     override fun read(
         archive: File,
         writer: ArchiveEntryWriter

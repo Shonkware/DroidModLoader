@@ -9,10 +9,6 @@ class ZipArchiveReader : ArchiveReader {
         private const val BUFFER_SIZE = 64 * 1024
     }
 
-    override fun supports(archive: File): Boolean {
-        return archive.extension.lowercase() == "zip"
-    }
-
     override fun read(
         archive: File,
         writer: ArchiveEntryWriter

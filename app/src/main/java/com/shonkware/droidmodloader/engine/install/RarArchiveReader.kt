@@ -7,10 +7,6 @@ import java.io.IOException
 
 class RarArchiveReader : ArchiveReader {
 
-    override fun supports(archive: File): Boolean {
-        return archive.extension.lowercase() == "rar"
-    }
-
     override fun read(
         archive: File,
         writer: ArchiveEntryWriter
