@@ -28,3 +28,17 @@ class ArchiveFormatProbeException(
     message: String,
     cause: Throwable? = null
 ) : IOException(message, cause)
+
+enum class ArchiveReadFailureCode {
+    UNSUPPORTED_VARIANT,
+    PASSWORD_PROTECTED_OR_ENCRYPTED,
+    MULTIPART_ARCHIVE,
+    CORRUPT_OR_UNSUPPORTED,
+    IO_FAILURE
+}
+
+class ArchiveReadException(
+    val code: ArchiveReadFailureCode,
+    message: String,
+    cause: Throwable? = null
+) : IOException(message, cause)

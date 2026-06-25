@@ -2,6 +2,7 @@ package com.shonkware.droidmodloader.engine.install
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
@@ -65,7 +66,7 @@ class ArchiveReaderRegistryTest {
     }
 
     @Test
-    fun `rar5 signature selects rar reader`() {
+    fun `rar5 signature fails as an unsupported variant`() {
         withFixture("rar5") { fixture ->
             val archive = writeArchive(
                 root = fixture.root,
@@ -76,9 +77,16 @@ class ArchiveReaderRegistryTest {
                 )
             )
 
-            assertSame(
-                fixture.rarReader,
+            val failure = expectReadFailure {
                 fixture.registry.findReader(archive)
+            }
+
+            assertEquals(
+                ArchiveReadFailureCode.UNSUPPORTED_VARIANT,
+                failure.code
+            )
+            assertTrue(
+                failure.message.orEmpty().contains("RAR5")
             )
         }
     }
@@ -224,6 +232,18 @@ class ArchiveReaderRegistryTest {
                 "Expected ArchiveFormatProbeException"
             )
         } catch (exception: ArchiveFormatProbeException) {
+            return exception
+        }
+    }
+    private fun expectReadFailure(
+        action: () -> Unit
+    ): ArchiveReadException {
+        try {
+            action()
+            throw AssertionError(
+                "Expected ArchiveReadException"
+            )
+        } catch (exception: ArchiveReadException) {
             return exception
         }
     }
