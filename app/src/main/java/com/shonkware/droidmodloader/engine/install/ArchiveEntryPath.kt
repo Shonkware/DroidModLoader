@@ -19,12 +19,22 @@ object ArchiveEntryPath {
             .replace("\\", "/")
             .trim()
 
-        if (rawNormalized.startsWith("/")) {
-            throw IOException("Blocked absolute archive path: $rawPath")
+        if (rawNormalized.indexOf('\u0000') >= 0) {
+            throw IOException(
+                "Blocked archive path containing a NUL character: $rawPath"
+            )
         }
 
-        if (rawNormalized.matches(Regex("""^[A-Za-z]:/.*"""))) {
-            throw IOException("Blocked absolute Windows archive path: $rawPath")
+        if (rawNormalized.startsWith("/")) {
+            throw IOException(
+                "Blocked absolute archive path: $rawPath"
+            )
+        }
+
+        if (rawNormalized.matches(Regex("""^[A-Za-z]:.*"""))) {
+            throw IOException(
+                "Blocked Windows drive-prefixed archive path: $rawPath"
+            )
         }
 
         var path = rawNormalized.replace(Regex("/+"), "/")
