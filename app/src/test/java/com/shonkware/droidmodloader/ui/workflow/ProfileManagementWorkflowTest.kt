@@ -35,10 +35,18 @@ class ProfileManagementWorkflowTest {
                     realDeployEnabled = true
                 )
             },
-            applyFirstSetupUiState = { _, profile -> appliedProfile = profile },
-            saveSelectedGameConfigFromUi = { savedConfigCount++ },
-            refreshDashboard = { refreshCount++ },
-            updateLastOperationStatus = { statuses.add(it) }
+            applyFirstSetupUiState = { _, profile ->
+                appliedProfile = profile
+            },
+            saveSelectedGameConfigFromUi = {
+                savedConfigCount++
+            },
+            refreshDashboard = {
+                refreshCount++
+            },
+            updateLastOperationStatus = {
+                statuses.add(it)
+            }
         )
 
         workflow.completeFirstSetup()
@@ -51,7 +59,10 @@ class ProfileManagementWorkflowTest {
         assertTrue(profiles.single().realDeployEnabled)
         assertEquals(profiles.single(), appliedProfile)
         assertEquals(
-            AppSetupState(setupComplete = true, activeProfileId = "skyrim_le_1234"),
+            AppSetupState(
+                setupComplete = true,
+                activeProfileId = "skyrim_le_1234"
+            ),
             repository.loadSetupState()
         )
         assertEquals(1, savedConfigCount)
@@ -63,7 +74,7 @@ class ProfileManagementWorkflowTest {
     fun createAdditionalProfileUsesFallbackNameAndDirectPath() {
         val repository = createRepository("additional-profile")
         var appliedProfile: GameProfile? = null
-        var syncCount = 0
+        val events = mutableListOf<String>()
 
         val workflow = createWorkflow(
             repository = repository,
@@ -76,8 +87,22 @@ class ProfileManagementWorkflowTest {
                     realDeployEnabled = false
                 )
             },
-            applyCreatedProfileUiState = { _, profile -> appliedProfile = profile },
-            syncPluginsFromCurrentState = { syncCount++ }
+            applyCreatedProfileUiState = { _, profile ->
+                appliedProfile = profile
+                events += "apply"
+            },
+            saveSelectedGameConfigFromUi = {
+                events += "save-config"
+            },
+            recoverActiveProfile = {
+                events += "recover"
+            },
+            syncPluginsFromCurrentState = {
+                events += "sync"
+            },
+            refreshDashboard = {
+                events += "refresh"
+            }
         )
 
         workflow.createAdditionalProfile()
@@ -88,8 +113,20 @@ class ProfileManagementWorkflowTest {
         assertEquals("/games/falloutnv/Data", profile.targetDataPath)
         assertFalse(profile.realDeployEnabled)
         assertEquals(profile, appliedProfile)
-        assertEquals("fallout_nv_2000", repository.loadSetupState().activeProfileId)
-        assertEquals(1, syncCount)
+        assertEquals(
+            "fallout_nv_2000",
+            repository.loadSetupState().activeProfileId
+        )
+        assertEquals(
+            listOf(
+                "apply",
+                "save-config",
+                "recover",
+                "sync",
+                "refresh"
+            ),
+            events
+        )
     }
 
     @Test
@@ -106,12 +143,16 @@ class ProfileManagementWorkflowTest {
             gameId = "fallout_nv"
         )
         repository.saveProfiles(listOf(currentProfile, targetProfile))
-        repository.saveSetupState(AppSetupState(true, currentProfile.profileId))
+        repository.saveSetupState(
+            AppSetupState(
+                setupComplete = true,
+                activeProfileId = currentProfile.profileId
+            )
+        )
 
         var activeProfileId: String? = currentProfile.profileId
         var switchedProfile: GameProfile? = null
-        var loadConfigCount = 0
-        var syncCount = 0
+        val events = mutableListOf<String>()
 
         val workflow = createWorkflow(
             repository = repository,
@@ -128,22 +169,46 @@ class ProfileManagementWorkflowTest {
             applySwitchedProfileUiState = { profile ->
                 switchedProfile = profile
                 activeProfileId = profile.profileId
+                events += "apply"
             },
-            loadSelectedGameConfigIntoUi = { loadConfigCount++ },
-            syncPluginsFromCurrentState = { syncCount++ }
+            loadSelectedGameConfigIntoUi = {
+                events += "load-config"
+            },
+            recoverActiveProfile = {
+                events += "recover"
+            },
+            syncPluginsFromCurrentState = {
+                events += "sync"
+            },
+            refreshDashboard = {
+                events += "refresh"
+            }
         )
 
         workflow.switchActiveProfile(targetProfile.profileId)
 
         val savedProfiles = repository.loadProfiles()
-        val savedCurrent = savedProfiles.first { it.profileId == currentProfile.profileId }
+        val savedCurrent = savedProfiles.first {
+            it.profileId == currentProfile.profileId
+        }
         assertEquals("/games/skyrim/Data", savedCurrent.targetDataPath)
         assertEquals("/games/skyrim", savedCurrent.targetRootPath)
         assertTrue(savedCurrent.realDeployEnabled)
         assertEquals(targetProfile, switchedProfile)
-        assertEquals(targetProfile.profileId, repository.loadSetupState().activeProfileId)
-        assertEquals(1, loadConfigCount)
-        assertEquals(1, syncCount)
+        assertEquals(
+            targetProfile.profileId,
+            repository.loadSetupState().activeProfileId
+        )
+        assertEquals(
+            listOf(
+                "apply",
+                "load-config",
+                "recover",
+                "sync",
+                "refresh"
+            ),
+            events
+        )
     }
 
     @Test
@@ -152,24 +217,105 @@ class ProfileManagementWorkflowTest {
         val firstProfile = profile("first", "First", "skyrim_le")
         val secondProfile = profile("second", "Second", "fallout_nv")
         repository.saveProfiles(listOf(firstProfile, secondProfile))
-        repository.saveSetupState(AppSetupState(true, firstProfile.profileId))
+        repository.saveSetupState(
+            AppSetupState(
+                setupComplete = true,
+                activeProfileId = firstProfile.profileId
+            )
+        )
 
         val asyncSelections = mutableListOf<GameProfile?>()
         val blockingSelections = mutableListOf<GameProfile?>()
+        val events = mutableListOf<String>()
 
         val workflow = createWorkflow(
             repository = repository,
             activeProfileIdProvider = { firstProfile.profileId },
-            applyDeletedProfileUiStateAsync = { _, active -> asyncSelections.add(active) },
-            applyDeletedProfileUiStateBlocking = { _, active -> blockingSelections.add(active) }
+            applyDeletedProfileUiStateAsync = { _, active ->
+                asyncSelections.add(active)
+                events += "apply-async"
+            },
+            applyDeletedProfileUiStateBlocking = { _, active ->
+                blockingSelections.add(active)
+                events += "apply-blocking"
+            },
+            loadSelectedGameConfigIntoUi = {
+                events += "load-config"
+            },
+            recoverActiveProfile = {
+                events += "recover"
+            },
+            syncPluginsFromCurrentState = {
+                events += "sync"
+            },
+            refreshDashboard = {
+                events += "refresh"
+            }
         )
 
         workflow.deleteProfile(firstProfile.profileId)
 
         assertEquals(listOf(secondProfile), repository.loadProfiles())
-        assertEquals(secondProfile.profileId, repository.loadSetupState().activeProfileId)
+        assertEquals(
+            secondProfile.profileId,
+            repository.loadSetupState().activeProfileId
+        )
         assertEquals(listOf(secondProfile), asyncSelections)
         assertEquals(listOf(secondProfile), blockingSelections)
+        assertEquals(
+            listOf(
+                "apply-async",
+                "apply-blocking",
+                "load-config",
+                "recover",
+                "sync",
+                "refresh"
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun deletingInactiveProfileDoesNotRecoverActiveProfile() {
+        val repository = createRepository("delete-inactive-profile")
+        val activeProfile = profile("active", "Active", "skyrim_le")
+        val inactiveProfile = profile("inactive", "Inactive", "fallout_nv")
+        repository.saveProfiles(listOf(activeProfile, inactiveProfile))
+        repository.saveSetupState(
+            AppSetupState(
+                setupComplete = true,
+                activeProfileId = activeProfile.profileId
+            )
+        )
+
+        var recoveryCount = 0
+        var syncCount = 0
+        var refreshCount = 0
+
+        val workflow = createWorkflow(
+            repository = repository,
+            activeProfileIdProvider = { activeProfile.profileId },
+            recoverActiveProfile = {
+                recoveryCount++
+            },
+            syncPluginsFromCurrentState = {
+                syncCount++
+            },
+            refreshDashboard = {
+                refreshCount++
+            }
+        )
+
+        workflow.deleteProfile(inactiveProfile.profileId)
+
+        assertEquals(listOf(activeProfile), repository.loadProfiles())
+        assertEquals(
+            activeProfile.profileId,
+            repository.loadSetupState().activeProfileId
+        )
+        assertEquals(0, recoveryCount)
+        assertEquals(0, syncCount)
+        assertEquals(1, refreshCount)
     }
 
     private fun createRepository(name: String): ProfileRepository {
@@ -212,6 +358,7 @@ class ProfileManagementWorkflowTest {
         applyDeletedProfileUiStateBlocking: (List<GameProfile>, GameProfile?) -> Unit = { _, _ -> },
         saveSelectedGameConfigFromUi: () -> Unit = {},
         loadSelectedGameConfigIntoUi: () -> Unit = {},
+        recoverActiveProfile: () -> Unit = {},
         syncPluginsFromCurrentState: () -> Unit = {},
         refreshDashboard: () -> Unit = {},
         updateLastOperationStatus: (String) -> Unit = {}
@@ -238,6 +385,7 @@ class ProfileManagementWorkflowTest {
             applyDeletedProfileUiStateBlocking = applyDeletedProfileUiStateBlocking,
             saveSelectedGameConfigFromUi = saveSelectedGameConfigFromUi,
             loadSelectedGameConfigIntoUi = loadSelectedGameConfigIntoUi,
+            recoverActiveProfile = recoverActiveProfile,
             syncPluginsFromCurrentState = syncPluginsFromCurrentState,
             refreshDashboard = refreshDashboard,
             appendLog = {},

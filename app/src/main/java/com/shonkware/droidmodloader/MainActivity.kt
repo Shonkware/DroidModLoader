@@ -467,6 +467,15 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             },
             saveSelectedGameConfigFromUi = { profileSessionCoordinator.saveSelectedGameConfigFromUi() },
             loadSelectedGameConfigIntoUi = { profileSessionCoordinator.loadSelectedGameConfigIntoUi() },
+            recoverActiveProfile = {
+                profileScopedEngineFactory.create()?.let { engine ->
+                    installReplacementStartupWorkflow.checkStartup(
+                        InstallReplacementRecoveryEngineAdapter(
+                            engine
+                        )
+                    )
+                }
+            },
             syncPluginsFromCurrentState = {
                 val engine = profileScopedEngineFactory.create()
                 if (engine != null) {
