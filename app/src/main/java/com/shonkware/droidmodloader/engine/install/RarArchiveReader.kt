@@ -76,6 +76,10 @@ class RarArchiveReader internal constructor(
                             archive.name,
                 cause = exception
             )
+        } catch (
+            exception: InstallCancelledException
+        ) {
+            throw exception
         } catch (exception: Exception) {
             throw ArchiveReadException(
                 code =

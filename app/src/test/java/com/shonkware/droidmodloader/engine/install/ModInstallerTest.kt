@@ -22,7 +22,7 @@ class ModInstallerTest {
 
             val installer = installer(
                 fixture = fixture,
-                extractArchive = { _, rawRoot ->
+                extractArchive = { _, rawRoot, _ ->
                     val dataDir = File(rawRoot, "Data")
                     check(dataDir.mkdirs())
                     File(dataDir, "marker.txt").writeText("new")
@@ -59,7 +59,7 @@ class ModInstallerTest {
 
             val installer = installer(
                 fixture = fixture,
-                extractArchive = { _, rawRoot ->
+                extractArchive = { _, rawRoot, _ ->
                     File(rawRoot, "partial.txt").writeText("partial")
                     throw IOException("Forced extraction failure")
                 }
@@ -113,7 +113,7 @@ class ModInstallerTest {
             )
             val installer = installer(
                 fixture = fixture,
-                extractArchive = { _, rawRoot ->
+                extractArchive = { _, rawRoot, _ ->
                     val dataDir = File(rawRoot, "Data")
                     check(dataDir.mkdirs())
                     File(dataDir, "marker.txt").writeText("new")
@@ -146,7 +146,7 @@ class ModInstallerTest {
 
     private fun installer(
         fixture: Fixture,
-        extractArchive: (File, File) -> Unit,
+        extractArchive: (File, File,InstallCancellationSignal) -> Unit,
         directoryReplacer: InstalledModDirectoryReplacer =
             InstalledModDirectoryReplacer(
                 operations = TestDirectoryOperations(),

@@ -26,6 +26,7 @@ import com.shonkware.droidmodloader.engine.service.ModLibraryService
 import com.shonkware.droidmodloader.engine.service.PluginManagementService
 import java.io.File
 import com.shonkware.droidmodloader.engine.install.InstallReplacementRecoveryResult
+import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 
 class ModEngine(
     private val appContext: Context,
@@ -111,8 +112,20 @@ class ModEngine(
         archive: File,
         priority: Int,
         enabled: Boolean = true,
-        sourceType: String = "imported_zip"
-    ): Mod = modLibraryService.installArchiveWithRecord(archive, priority, enabled, sourceType)
+        sourceType: String = "imported_zip",
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
+    ): Mod {
+        return modLibraryService.installArchiveWithRecord(
+            archive = archive,
+            priority = priority,
+            enabled = enabled,
+            sourceType = sourceType,
+            cancellationSignal =
+                cancellationSignal
+        )
+    }
     fun registerExistingInstalledFolderWithRecord(
         modDir: File,
         priority: Int,
@@ -172,21 +185,40 @@ class ModEngine(
     fun normalizeModPriorities(mods: List<Mod>): List<Mod> = modLibraryService.normalizeModPriorities(mods)
     fun indexModContent(mod: Mod): ModContentIndex = modLibraryService.indexModContent(mod)
     fun indexCurrentModContent(): Map<String, ModContentIndex> = modLibraryService.indexCurrentModContent()
-    fun prepareArchiveInstall(archive: File): PreparedArchiveInstall =
-        modLibraryService.prepareArchiveInstall(archive)
+    fun prepareArchiveInstall(
+        archive: File,
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
+    ): PreparedArchiveInstall {
+        return modLibraryService.prepareArchiveInstall(
+            archive = archive,
+            cancellationSignal =
+                cancellationSignal
+        )
+    }
     fun finalizePreparedArchiveInstall(
         prepared: PreparedArchiveInstall,
         selectedOptionIds: Set<String>,
         priority: Int,
         enabled: Boolean = true,
-        sourceType: String = "imported_archive"
-    ): Mod = modLibraryService.finalizePreparedArchiveInstall(
-        prepared,
-        selectedOptionIds,
-        priority,
-        enabled,
-        sourceType
-    )
+        sourceType: String = "imported_archive",
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
+    ): Mod {
+        return modLibraryService
+            .finalizePreparedArchiveInstall(
+                prepared = prepared,
+                selectedOptionIds =
+                    selectedOptionIds,
+                priority = priority,
+                enabled = enabled,
+                sourceType = sourceType,
+                cancellationSignal =
+                    cancellationSignal
+            )
+    }
     fun cancelPreparedArchiveInstall(prepared: PreparedArchiveInstall) =
         modLibraryService.cancelPreparedArchiveInstall(prepared)
     fun buildModFilePreview(mod: Mod): ModFilePreview =

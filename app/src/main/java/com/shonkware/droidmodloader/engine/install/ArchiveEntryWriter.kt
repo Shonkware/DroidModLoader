@@ -11,24 +11,34 @@ class ArchiveEntryWriter internal constructor(
     private val outputDir: File,
     private val limits: ExtractionLimits,
     private val debugLog: (String) -> Unit,
-    private val usableSpaceBytes: (File) -> Long?
+    private val usableSpaceBytes: (File) -> Long?,
+    private val cancellationSignal:
+    InstallCancellationSignal =
+        InstallCancellationSignal.NONE
 ) {
     internal constructor(
         outputDir: File,
         limits: ExtractionLimits,
-        debugLog: (String) -> Unit
+        debugLog: (String) -> Unit,
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
     ) : this(
         outputDir = outputDir,
         limits = limits,
         debugLog = debugLog,
         usableSpaceBytes = { path ->
             path.usableSpace.takeIf { it > 0L }
-        }
+        },
+        cancellationSignal = cancellationSignal
     )
 
     constructor(
         outputDir: File,
-        limits: ExtractionLimits = ExtractionLimits()
+        limits: ExtractionLimits = ExtractionLimits(),
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
     ) : this(
         outputDir = outputDir,
         limits = limits,
@@ -37,7 +47,8 @@ class ArchiveEntryWriter internal constructor(
         },
         usableSpaceBytes = { path ->
             path.usableSpace.takeIf { it > 0L }
-        }
+        },
+        cancellationSignal = cancellationSignal
     )
 
     companion object {
@@ -53,6 +64,8 @@ class ArchiveEntryWriter internal constructor(
     private var bytesWrittenSinceSpaceCheck = 0L
 
     fun writeDirectory(rawEntryName: String) {
+        cancellationSignal
+            .throwIfCancellationRequested()
         val entry = resolveEntryOrNull(rawEntryName)
             ?: return
 
@@ -79,6 +92,8 @@ class ArchiveEntryWriter internal constructor(
         rawEntryName: String,
         writeContent: (OutputStream) -> Unit
     ) {
+        cancellationSignal
+            .throwIfCancellationRequested()
         val entry = resolveEntryOrNull(rawEntryName)
             ?: return
 
@@ -122,6 +137,12 @@ class ArchiveEntryWriter internal constructor(
                 removePartialFile(entry.outputFile)
 
             when (exception) {
+                is InstallCancelledException -> {
+                    cleanupFailure?.let(
+                        exception::addSuppressed
+                    )
+                    throw exception
+                }
                 is ArchiveReadException -> {
                     cleanupFailure?.let(
                         exception::addSuppressed
@@ -429,6 +450,8 @@ class ArchiveEntryWriter internal constructor(
         private fun ensureWriteAllowed(
             additionalBytes: Long
         ) {
+            cancellationSignal
+                .throwIfCancellationRequested()
             if (
                 additionalBytes >
                 limits.maxFileBytes -

@@ -290,6 +290,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             },
             beginOperation = { message -> operationReporter.beginOperation(message) },
             finishOperation = { message -> operationReporter.finishOperation(message) },
+            cancelOperation = { message -> operationReporter.cancelOperation(message) },
             failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
             appendLog = { message -> operationReporter.appendLog(message) },
             appendError = { message, throwable -> operationReporter.appendError(message, throwable) },

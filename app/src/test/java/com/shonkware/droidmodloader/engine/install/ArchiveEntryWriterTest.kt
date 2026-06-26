@@ -431,6 +431,41 @@ class ArchiveEntryWriterTest {
             )
         }
     }
+    @Test
+    fun `cancellation removes the partial file`() {
+        withFixture("cancelled") { fixture ->
+            val controller =
+                InstallCancellationController()
+
+            val writer = fixture.writer(
+                cancellationSignal =
+                    controller.signal
+            )
+
+            expectCancellation {
+                writer.writeFile(
+                    "partial.bin"
+                ) { output ->
+                    output.write(
+                        byteArrayOf(1, 2, 3)
+                    )
+
+                    controller.cancel()
+
+                    output.write(
+                        byteArrayOf(4, 5, 6)
+                    )
+                }
+            }
+
+            assertFalse(
+                File(
+                    fixture.outputDir,
+                    "partial.bin"
+                ).exists()
+            )
+        }
+    }
 
     private fun limits(
         maxEntries: Int = 100,
@@ -451,6 +486,21 @@ class ArchiveEntryWriterTest {
             spaceCheckIntervalBytes =
                 spaceCheckIntervalBytes
         )
+    }
+
+    private fun expectCancellation(
+        action: () -> Unit
+    ): InstallCancelledException {
+        try {
+            action()
+            throw AssertionError(
+                "Expected InstallCancelledException"
+            )
+        } catch (
+            exception: InstallCancelledException
+        ) {
+            return exception
+        }
     }
 
     private fun expectReadFailure(
@@ -501,13 +551,19 @@ class ArchiveEntryWriterTest {
                 ExtractionLimits(),
             usableSpaceBytes: (File) -> Long? = {
                 Long.MAX_VALUE
-            }
+            },
+            cancellationSignal:
+            InstallCancellationSignal =
+                InstallCancellationSignal.NONE
         ): ArchiveEntryWriter {
             return ArchiveEntryWriter(
                 outputDir = outputDir,
                 limits = limits,
                 debugLog = {},
-                usableSpaceBytes = usableSpaceBytes
+                usableSpaceBytes =
+                    usableSpaceBytes,
+                cancellationSignal =
+                    cancellationSignal
             )
         }
     }

@@ -4,6 +4,10 @@ import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.install.InstallerOptionSelectionHelper
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.model.Mod
+import com.shonkware.droidmodloader.engine.install.InstallCancellationController
+import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
+import com.shonkware.droidmodloader.engine.install.InstallCancelledException
+import java.util.concurrent.atomic.AtomicReference
 
 internal data class PendingInstallerSession(
     val prepared: PreparedArchiveInstall,
@@ -18,7 +22,9 @@ internal interface PendingInstallerEngine {
         prepared: PreparedArchiveInstall,
         selectedOptionIds: Set<String>,
         priority: Int,
-        sourceType: String
+        sourceType: String,
+        cancellationSignal:
+        InstallCancellationSignal
     ): Mod
 
     fun saveCurrentMods(mods: List<Mod>)
@@ -39,13 +45,18 @@ internal class PendingInstallerEngineAdapter(
         prepared: PreparedArchiveInstall,
         selectedOptionIds: Set<String>,
         priority: Int,
-        sourceType: String
+        sourceType: String,
+        cancellationSignal:
+        InstallCancellationSignal
     ): Mod {
         return engine.finalizePreparedArchiveInstall(
             prepared = prepared,
-            selectedOptionIds = selectedOptionIds,
+            selectedOptionIds =
+                selectedOptionIds,
             priority = priority,
-            sourceType = sourceType
+            sourceType = sourceType,
+            cancellationSignal =
+                cancellationSignal
         )
     }
 
@@ -79,6 +90,7 @@ internal class PendingInstallerWorkflow(
     private val createEngine: () -> PendingInstallerEngine?,
     private val beginOperation: (String) -> Unit,
     private val finishOperation: (String) -> Unit,
+    private val cancelOperation: (String) -> Unit,
     private val failOperation: (String, Throwable?) -> Unit,
     private val appendLog: (String) -> Unit,
     private val appendError: (String, Throwable?) -> Unit,
@@ -87,70 +99,197 @@ internal class PendingInstallerWorkflow(
     private val clearPendingInstallerState: () -> Unit,
     private val refreshDashboard: () -> Unit
 ) {
+    private val activeCancellationController =
+        AtomicReference<
+                InstallCancellationController?
+                >(null)
     fun finalizePendingInstall() {
         if (isOperationInProgress()) {
-            appendLog("Ignoring installer finalize request: operation already in progress.")
+            appendLog(
+                "Ignoring installer finalize request: " +
+                        "operation already in progress."
+            )
             return
         }
 
         val session = pendingSessionProvider()
+
         if (session == null) {
-            appendError("No pending installer session found.", null)
+            appendError(
+                "No pending installer session found.",
+                null
+            )
             return
         }
 
-        beginOperation("Installing selected options...")
+        val cancellationController =
+            InstallCancellationController()
+
+        if (
+            !activeCancellationController
+                .compareAndSet(
+                    null,
+                    cancellationController
+                )
+        ) {
+            appendLog(
+                "Ignoring installer finalize request: " +
+                        "installer finalization is already active."
+            )
+            return
+        }
+
+        beginOperation(
+            "Installing selected options..."
+        )
 
         val engine = createEngine()
+
         if (engine == null) {
-            failOperation("Install failed: could not create engine.", null)
+            activeCancellationController
+                .compareAndSet(
+                    cancellationController,
+                    null
+                )
+
+            failOperation(
+                "Install failed: could not create engine.",
+                null
+            )
             return
         }
 
         try {
-            val existingMods = engine.getCurrentMods()
-            val nextPriority = calculateNextPendingInstallerPriority(existingMods)
+            val existingMods =
+                engine.getCurrentMods()
 
-            val installedMod = engine.finalizePreparedArchiveInstall(
-                prepared = session.prepared,
-                selectedOptionIds = session.selectedOptionIds,
-                priority = nextPriority,
-                sourceType = "imported_archive"
-            )
+            val nextPriority =
+                calculateNextPendingInstallerPriority(
+                    existingMods
+                )
 
-            val currentMods = engine.getCurrentMods()
-                .filterNot { it.id == installedMod.id }
-                .sortedBy { it.priority }
+            val installedMod =
+                engine.finalizePreparedArchiveInstall(
+                    prepared = session.prepared,
+                    selectedOptionIds =
+                        session.selectedOptionIds,
+                    priority = nextPriority,
+                    sourceType =
+                        "imported_archive",
+                    cancellationSignal =
+                        cancellationController.signal
+                )
 
-            val updatedMods = currentMods + installedMod.copy(priority = currentMods.size + 1)
+            val currentMods =
+                engine.getCurrentMods()
+                    .filterNot {
+                        it.id == installedMod.id
+                    }
+                    .sortedBy { it.priority }
+
+            val updatedMods =
+                currentMods +
+                        installedMod.copy(
+                            priority =
+                                currentMods.size + 1
+                        )
+
             engine.saveCurrentMods(updatedMods)
 
-            val archiveRecordId = session.archiveRecordId
+            val archiveRecordId =
+                session.archiveRecordId
+
             if (!archiveRecordId.isNullOrBlank()) {
                 engine.markDownloadedArchiveInstalled(
                     archiveId = archiveRecordId,
-                    installedModId = installedMod.id
+                    installedModId =
+                        installedMod.id
                 )
 
-                appendLog("Archive record marked installed: $archiveRecordId")
+                appendLog(
+                    "Archive record marked installed: " +
+                            archiveRecordId
+                )
             } else {
-                appendLog("No archive record ID was attached to this installer session.")
+                appendLog(
+                    "No archive record ID was attached " +
+                            "to this installer session."
+                )
             }
 
             engine.syncPlugins()
             clearPendingInstallerState()
 
-            appendLog("Installed selected options for: ${session.prepared.archiveName}")
-            appendLog("Installed mod: $installedMod")
-            engine.appendInstalledModRoutingSummary(installedMod)
+            appendLog(
+                "Installed selected options for: " +
+                        session.prepared.archiveName
+            )
+            appendLog(
+                "Installed mod: $installedMod"
+            )
+
+            engine.appendInstalledModRoutingSummary(
+                installedMod
+            )
+
             appendLog("RESULT: PASS")
 
-            finishOperation("Archive imported successfully.")
+            finishOperation(
+                "Archive imported successfully."
+            )
             refreshDashboard()
-        } catch (t: Throwable) {
-            appendLog("CRASH TYPE: ${t::class.java.name}")
+        } catch (
+            exception: InstallCancelledException
+        ) {
+            try {
+                engine.cancelPreparedArchiveInstall(
+                    session.prepared
+                )
+            } catch (
+                cleanupException: Exception
+            ) {
+                exception.addSuppressed(
+                    cleanupException
+                )
+
+                appendError(
+                    "Failed to clean cancelled " +
+                            "installer session: " +
+                            cleanupException.message,
+                    cleanupException
+                )
+            }
+
+            clearPendingInstallerState()
+
+            appendLog(
+                "Installer session cancelled: " +
+                        session.prepared.archiveName
+            )
+            appendLog("RESULT: CANCELLED")
+
+            cancelOperation(
+                "Installer cancelled."
+            )
+            refreshDashboard()
+        } catch (throwable: Throwable) {
+            appendLog(
+                "CRASH TYPE: " +
+                        throwable::class.java.name
+            )
             appendLog("RESULT: FAIL")
-            failOperation("Installer finalize failed: ${t.message}", t)
+
+            failOperation(
+                "Installer finalize failed: " +
+                        throwable.message,
+                throwable
+            )
+        } finally {
+            activeCancellationController
+                .compareAndSet(
+                    cancellationController,
+                    null
+                )
         }
     }
 
@@ -167,18 +306,48 @@ internal class PendingInstallerWorkflow(
     }
 
     fun cancelPendingInstall() {
-        val session = pendingSessionProvider() ?: return
+        val session =
+            pendingSessionProvider() ?: return
+
+        val activeController =
+            activeCancellationController.get()
+
+        if (activeController != null) {
+            activeController.cancel()
+
+            appendLog(
+                "Installer cancellation requested for: " +
+                        session.prepared.archiveName
+            )
+            updateLastOperationStatus(
+                "Cancelling installer..."
+            )
+            return
+        }
+
         val engine = createEngine() ?: return
 
         try {
-            engine.cancelPreparedArchiveInstall(session.prepared)
-            appendLog("Cancelled installer session for: ${session.prepared.archiveName}")
-        } catch (e: Exception) {
-            appendError("Failed to clean installer session: ${e.message}", e)
+            engine.cancelPreparedArchiveInstall(
+                session.prepared
+            )
+
+            appendLog(
+                "Cancelled installer session for: " +
+                        session.prepared.archiveName
+            )
+        } catch (exception: Exception) {
+            appendError(
+                "Failed to clean installer session: " +
+                        exception.message,
+                exception
+            )
         }
 
         clearPendingInstallerState()
-        updateLastOperationStatus("Installer cancelled.")
+        updateLastOperationStatus(
+            "Installer cancelled."
+        )
     }
 }
 

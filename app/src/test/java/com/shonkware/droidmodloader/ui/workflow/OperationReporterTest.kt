@@ -54,6 +54,43 @@ class OperationReporterTest {
         assertTrue(state.fileLines.last().contains("IllegalStateException: broken"))
     }
 
+    @Test
+    fun `cancellation ends operation without recording error`() {
+        val state = FakeState()
+        val reporter = createReporter(state)
+
+        reporter.beginOperation(
+            "Installing..."
+        )
+        reporter.cancelOperation(
+            "Installer cancelled."
+        )
+
+        assertFalse(state.operationInProgress)
+        assertEquals(
+            "",
+            state.activeOperationText
+        )
+        assertTrue(
+            state.lastOperationStatus.matches(
+                Regex(
+                    """Installer cancelled\. \(\d+ ms\)"""
+                )
+            )
+        )
+        assertTrue(
+            state.logText.contains(
+                "OPERATION CANCELLED: " +
+                        "Installer cancelled."
+            )
+        )
+        assertTrue(state.errorLines.isEmpty())
+        assertEquals(
+            null,
+            state.errorThrowable
+        )
+    }
+
     private fun createReporter(state: FakeState): OperationReporter {
         return OperationReporter(
             runOnUiThread = { action -> action() },

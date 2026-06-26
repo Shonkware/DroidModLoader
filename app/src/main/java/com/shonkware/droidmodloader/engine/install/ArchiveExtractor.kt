@@ -7,14 +7,27 @@ class ArchiveExtractor(
 ) {
     fun extractToRawFolder(
         archive: File,
-        outputDir: File
+        outputDir: File,
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
     ) {
+        cancellationSignal
+            .throwIfCancellationRequested()
+
         val reader = readerRegistry.findReader(archive)
-        val writer = ArchiveEntryWriter(outputDir)
+        val writer = ArchiveEntryWriter(
+            outputDir = outputDir,
+            cancellationSignal =
+                cancellationSignal
+        )
 
         reader.read(
             archive = archive,
             writer = writer
         )
+
+        cancellationSignal
+            .throwIfCancellationRequested()
     }
 }
