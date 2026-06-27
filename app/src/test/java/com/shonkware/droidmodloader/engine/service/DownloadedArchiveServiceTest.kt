@@ -22,10 +22,21 @@ class DownloadedArchiveServiceTest {
     @Test
     fun `registered archive can be found and marked installed`() {
         val fixture = fixture("register")
-        val archive = File(fixture.archiveLibraryDir, "Example Mod-123-1-0.zip").apply {
-            parentFile?.mkdirs()
-            writeBytes(byteArrayOf(1, 2, 3, 4))
-        }
+        val archive =
+            File(
+                fixture.archiveLibraryDir,
+                "Example Mod-123-1-0.zip"
+            ).apply {
+                parentFile?.mkdirs()
+                writeBytes(
+                    byteArrayOf(
+                        0x50,
+                        0x4B,
+                        0x03,
+                        0x04
+                    )
+                )
+            }
 
         val record = fixture.service.registerDownloadedArchive(
             archiveFile = archive,

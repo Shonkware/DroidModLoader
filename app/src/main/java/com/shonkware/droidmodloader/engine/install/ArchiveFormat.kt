@@ -3,12 +3,25 @@ package com.shonkware.droidmodloader.engine.install
 import java.io.IOException
 
 enum class ArchiveFormat(
-    val expectedExtensions: Set<String>
+    val expectedExtensions: Set<String>,
+    val metadataLabel: String
 ) {
-    ZIP(setOf("zip")),
-    SEVEN_Z(setOf("7z")),
-    RAR4(setOf("rar")),
-    RAR5(setOf("rar"))
+    ZIP(
+        expectedExtensions = setOf("zip"),
+        metadataLabel = "zip"
+    ),
+    SEVEN_Z(
+        expectedExtensions = setOf("7z"),
+        metadataLabel = "7z"
+    ),
+    RAR4(
+        expectedExtensions = setOf("rar"),
+        metadataLabel = "rar"
+    ),
+    RAR5(
+        expectedExtensions = setOf("rar"),
+        metadataLabel = "rar"
+    )
 }
 
 enum class ArchiveProbeFailureCode {

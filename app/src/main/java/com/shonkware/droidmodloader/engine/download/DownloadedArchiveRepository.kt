@@ -3,10 +3,12 @@ package com.shonkware.droidmodloader.engine.download
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import com.shonkware.droidmodloader.engine.install.ArchiveFormatProbe
 
 class DownloadedArchiveRepository(
     private val archiveLibraryDir: File,
-    private val archiveListFile: File
+    private val archiveListFile: File,
+    private val archiveFormatProbe: ArchiveFormatProbe = ArchiveFormatProbe()
 ) {
     fun load(): List<DownloadedArchiveRecord> {
         if (!archiveListFile.exists()) return emptyList()
@@ -42,6 +44,7 @@ class DownloadedArchiveRepository(
         sourceUrl: String? = null
     ): DownloadedArchiveRecord {
         archiveLibraryDir.mkdirs()
+        val archiveProbeResult = archiveFormatProbe.probe(archiveFile)
 
         val existingRecords = load()
         val nexusInfo = sourceUrl?.let { NexusUrlParser.parse(it) }
@@ -50,7 +53,7 @@ class DownloadedArchiveRepository(
             archiveId = buildArchiveId(archiveFile),
             displayName = ArchiveMetadataReader.cleanDisplayName(originalDisplayName),
             fileName = archiveFile.name,
-            archiveFormat = ArchiveMetadataReader.detectArchiveFormat(archiveFile.name),
+            archiveFormat = archiveProbeResult.format.metadataLabel,
             relativePath = archiveFile.relativeToOrSelf(archiveLibraryDir).path,
             sizeBytes = archiveFile.length(),
             modifiedAtMillis = archiveFile.lastModified(),

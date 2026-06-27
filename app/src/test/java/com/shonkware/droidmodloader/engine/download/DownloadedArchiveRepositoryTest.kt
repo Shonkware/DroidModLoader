@@ -22,7 +22,9 @@ class DownloadedArchiveRepositoryTest {
         )
 
         val archiveFile = File(archiveLibraryDir, "Example_Mod.zip")
-        archiveFile.writeText("fake archive data")
+        archiveFile.writeSignature(
+            0x50, 0x4B, 0x03, 0x04
+        )
         archiveFile.setLastModified(1000L)
 
         val record = repository.registerArchive(
@@ -56,7 +58,9 @@ class DownloadedArchiveRepositoryTest {
         )
 
         val archiveFile = File(archiveLibraryDir, "Same_Mod.zip")
-        archiveFile.writeText("fake archive data")
+        archiveFile.writeSignature(
+            0x50, 0x4B, 0x03, 0x04
+        )
         archiveFile.setLastModified(1000L)
 
         repository.registerArchive(
@@ -85,7 +89,10 @@ class DownloadedArchiveRepositoryTest {
         )
 
         val archiveFile = File(archiveLibraryDir, "Install_Me.7z")
-        archiveFile.writeText("fake archive data")
+        archiveFile.writeSignature(
+            0x37, 0x7A, 0xBC, 0xAF,
+            0x27, 0x1C, 0x00, 0x04
+        )
         archiveFile.setLastModified(1000L)
 
         val record = repository.registerArchive(
@@ -114,7 +121,10 @@ class DownloadedArchiveRepositoryTest {
         )
 
         val archiveFile = File(archiveLibraryDir, "Summary_Mod.rar")
-        archiveFile.writeText("fake archive data")
+        archiveFile.writeSignature(
+            0x52, 0x61, 0x72, 0x21,
+            0x1A, 0x07, 0x00
+        )
         archiveFile.setLastModified(1000L)
 
         val record = repository.registerArchive(
@@ -178,6 +188,58 @@ class DownloadedArchiveRepositoryTest {
         ).load().single()
 
         assertEquals("/archives/Legacy.zip", record.sourcePath)
+    }
+
+    @Test
+    fun registerArchive_usesDetectedFormatInsteadOfExtension() {
+        val archiveLibraryDir =
+            tempFolder.newFolder(
+                "mismatch_archive_library"
+            )
+
+        val archiveListFile =
+            File(
+                tempFolder.newFolder("mismatch_state"),
+                "downloaded_archives.json"
+            )
+
+        val repository =
+            DownloadedArchiveRepository(
+                archiveLibraryDir = archiveLibraryDir,
+                archiveListFile = archiveListFile
+            )
+
+        val archiveFile =
+            File(
+                archiveLibraryDir,
+                "Actually_Seven_Zip.zip"
+            ).apply {
+                writeSignature(
+                    0x37, 0x7A, 0xBC, 0xAF,
+                    0x27, 0x1C, 0x00, 0x04
+                )
+            }
+
+        val record =
+            repository.registerArchive(
+                archiveFile = archiveFile,
+                originalDisplayName =
+                    "Actually_Seven_Zip.zip"
+            )
+
+        assertEquals(
+            "7z",
+            record.archiveFormat
+        )
+    }
+    private fun File.writeSignature(
+        vararg values: Int
+    ) {
+        writeBytes(
+            values.map {
+                it.toByte()
+            }.toByteArray()
+        )
     }
 
 }
