@@ -21,6 +21,9 @@ import com.shonkware.droidmodloader.engine.model.ModFile
 import com.shonkware.droidmodloader.engine.model.ModType
 import com.shonkware.droidmodloader.engine.rules.DeployFileClassifier
 import java.io.File
+import com.shonkware.droidmodloader.engine.install.InstallReplacementRecovery
+import com.shonkware.droidmodloader.engine.install.InstallReplacementRecoveryResult
+import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 
 internal class ModLibraryService(
     private val tempDir: File,
@@ -46,6 +49,9 @@ internal class ModLibraryService(
         tempDir = tempDir,
         modsDir = modsDir
     )
+
+    private val installReplacementRecovery =
+        InstallReplacementRecovery()
 
     fun buildModFromInstalledFolder(
         modDir: File,
@@ -147,6 +153,11 @@ internal class ModLibraryService(
                 enabled = true
             )
         }
+    }
+
+    fun recoverInterruptedInstallReplacements():
+            List<InstallReplacementRecoveryResult> {
+        return installReplacementRecovery.recoverAll(modsDir)
     }
 
 
@@ -334,14 +345,27 @@ internal class ModLibraryService(
         archive: File,
         priority: Int,
         enabled: Boolean = true,
-        sourceType: String = "imported_zip"): Mod {
-        val extractedDir = modInstaller.installArchive(archive)
+        sourceType: String = "imported_zip",
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
+    ): Mod {
+        val extractedDir = modInstaller.installArchive(
+            archive = archive,
+            cancellationSignal = cancellationSignal
+        )
+
         writeInstalledModRecord(
             modDir = extractedDir,
             sourceType = sourceType,
             sourceArchiveName = archive.name
         )
-        return buildModFromInstalledFolder(extractedDir, priority, enabled)
+
+        return buildModFromInstalledFolder(
+            extractedDir,
+            priority,
+            enabled
+        )
     }
 
 
@@ -436,22 +460,36 @@ internal class ModLibraryService(
     }
 
 
-    fun prepareArchiveInstall(archive: File): PreparedArchiveInstall {
-        return preparedArchiveInstaller.prepare(archive)
+    fun prepareArchiveInstall(
+        archive: File,
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
+    ): PreparedArchiveInstall {
+        return preparedArchiveInstaller.prepare(
+            archive = archive,
+            cancellationSignal = cancellationSignal
+        )
     }
-
 
     fun finalizePreparedArchiveInstall(
         prepared: PreparedArchiveInstall,
         selectedOptionIds: Set<String>,
         priority: Int,
         enabled: Boolean = true,
-        sourceType: String = "imported_archive"
+        sourceType: String = "imported_archive",
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
     ): Mod {
-        val finalDir = preparedArchiveInstaller.finalizeInstall(
-            prepared = prepared,
-            selection = InstallerSelection(selectedOptionIds)
-        )
+        val finalDir =
+            preparedArchiveInstaller.finalizeInstall(
+                prepared = prepared,
+                selection =
+                    InstallerSelection(selectedOptionIds),
+                cancellationSignal =
+                    cancellationSignal
+            )
 
         writeInstalledModRecord(
             modDir = finalDir,

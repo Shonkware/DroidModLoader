@@ -42,6 +42,7 @@ internal class ProfileManagementWorkflow(
     private val applyDeletedProfileUiStateBlocking: (List<GameProfile>, GameProfile?) -> Unit,
     private val saveSelectedGameConfigFromUi: () -> Unit,
     private val loadSelectedGameConfigIntoUi: () -> Unit,
+    private val recoverActiveProfile: () -> Unit,
     private val syncPluginsFromCurrentState: () -> Unit,
     private val refreshDashboard: () -> Unit,
     private val appendLog: (String) -> Unit,
@@ -123,6 +124,7 @@ internal class ProfileManagementWorkflow(
 
         applyCreatedProfileUiState(profiles, profile)
         saveSelectedGameConfigFromUi()
+        recoverActiveProfile()
         syncPluginsFromCurrentState()
         refreshDashboard()
 
@@ -151,6 +153,7 @@ internal class ProfileManagementWorkflow(
 
         applySwitchedProfileUiState(profile)
         loadSelectedGameConfigIntoUi()
+        recoverActiveProfile()
         syncPluginsFromCurrentState()
         refreshDashboard()
 
@@ -215,24 +218,53 @@ internal class ProfileManagementWorkflow(
         repo.saveProfiles(profiles)
 
         val currentActiveProfileId = activeProfileIdProvider()
-        val newActiveProfile = if (currentActiveProfileId == profileId) {
+        val activeProfileChanged =
+            currentActiveProfileId == profileId
+
+        val newActiveProfile = if (activeProfileChanged) {
             profiles.firstOrNull()
         } else {
-            profiles.firstOrNull { it.profileId == currentActiveProfileId }
+            profiles.firstOrNull {
+                it.profileId == currentActiveProfileId
+            }
         }
 
         repo.saveSetupState(
             AppSetupState(
                 setupComplete = profiles.isNotEmpty(),
-                activeProfileId = newActiveProfile?.profileId
+                activeProfileId =
+                    newActiveProfile?.profileId
             )
         )
 
-        applyDeletedProfileUiStateAsync(profiles, newActiveProfile)
+        applyDeletedProfileUiStateAsync(
+            profiles,
+            newActiveProfile
+        )
 
-        appendLog("Deleted profile settings only: ${profileToDelete.profileName}")
-        updateLastOperationStatus("Deleted profile: ${profileToDelete.profileName}")
+        appendLog(
+            "Deleted profile settings only: " +
+                    profileToDelete.profileName
+        )
+        updateLastOperationStatus(
+            "Deleted profile: " +
+                    profileToDelete.profileName
+        )
 
-        applyDeletedProfileUiStateBlocking(profiles, newActiveProfile)
+        applyDeletedProfileUiStateBlocking(
+            profiles,
+            newActiveProfile
+        )
+
+        if (
+            activeProfileChanged &&
+            newActiveProfile != null
+        ) {
+            loadSelectedGameConfigIntoUi()
+            recoverActiveProfile()
+            syncPluginsFromCurrentState()
+        }
+
+        refreshDashboard()
     }
 }

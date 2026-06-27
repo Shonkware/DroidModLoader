@@ -9,7 +9,14 @@ class PreparedArchiveInstaller internal constructor(
     private val modsDir: File,
     private val directoryReplacer: InstalledModDirectoryReplacer,
     private val operationId: () -> String,
-    private val debugLog: (String) -> Unit
+    private val debugLog: (String) -> Unit,
+    private val fileCopier:
+        (
+        File,
+        File,
+        InstallCancellationSignal
+    ) -> Unit =
+        InstallFileCopier::copyRecursively
 ) {
     constructor(
         tempDir: File,
@@ -18,7 +25,9 @@ class PreparedArchiveInstaller internal constructor(
         tempDir = tempDir,
         modsDir = modsDir,
         directoryReplacer = InstalledModDirectoryReplacer(),
-        operationId = { System.currentTimeMillis().toString() },
+        operationId = {
+            System.currentTimeMillis().toString()
+        },
         debugLog = { message ->
             Log.d(TAG, message)
         }
@@ -31,7 +40,12 @@ class PreparedArchiveInstaller internal constructor(
     private val layoutAnalyzer = InstallerLayoutAnalyzer()
     private val archiveExtractor = ArchiveExtractor()
 
-    fun prepare(archive: File): PreparedArchiveInstall {
+    fun prepare(
+        archive: File,
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
+    ): PreparedArchiveInstall {
         val sessionRoot = File(
             tempDir,
             "installer_sessions/${operationId()}"
@@ -39,6 +53,9 @@ class PreparedArchiveInstaller internal constructor(
         val rawRoot = File(sessionRoot, "raw")
 
         try {
+            cancellationSignal
+                .throwIfCancellationRequested()
+
             if (sessionRoot.exists()) {
                 throw IOException(
                     "Prepared installer session already exists: " +
@@ -55,11 +72,21 @@ class PreparedArchiveInstaller internal constructor(
 
             archiveExtractor.extractToRawFolder(
                 archive = archive,
-                outputDir = rawRoot
+                outputDir = rawRoot,
+                cancellationSignal =
+                    cancellationSignal
             )
 
-            val contentRoot = layoutAnalyzer.resolveContentRoot(rawRoot)
+            cancellationSignal
+                .throwIfCancellationRequested()
+
+            val contentRoot =
+                layoutAnalyzer.resolveContentRoot(rawRoot)
             val modName = archive.nameWithoutExtension
+
+            cancellationSignal
+                .throwIfCancellationRequested()
+
             val plan = layoutAnalyzer.analyze(
                 contentRoot = contentRoot,
                 modName = modName
@@ -75,9 +102,12 @@ class PreparedArchiveInstaller internal constructor(
                 archivePath = archive.absolutePath,
                 archiveName = archive.name,
                 modName = modName,
-                sessionRootPath = sessionRoot.absolutePath,
-                extractedRootPath = rawRoot.absolutePath,
-                installRootPath = contentRoot.absolutePath,
+                sessionRootPath =
+                    sessionRoot.absolutePath,
+                extractedRootPath =
+                    rawRoot.absolutePath,
+                installRootPath =
+                    contentRoot.absolutePath,
                 plan = plan
             )
         } catch (exception: Exception) {
@@ -87,15 +117,23 @@ class PreparedArchiveInstaller internal constructor(
             ) {
                 exception.addSuppressed(
                     IOException(
-                        "Could not clean failed prepared installer session: " +
+                        "Could not clean failed prepared " +
+                                "installer session: " +
                                 sessionRoot.absolutePath
                     )
                 )
             }
 
+            if (
+                exception is
+                        InstallCancelledException
+            ) {
+                throw exception
+            }
+
             throw IOException(
-                "Failed to prepare archive install for ${archive.name}: " +
-                        exception.message,
+                "Failed to prepare archive install for " +
+                        "${archive.name}: ${exception.message}",
                 exception
             )
         }
@@ -103,21 +141,33 @@ class PreparedArchiveInstaller internal constructor(
 
     fun finalizeInstall(
         prepared: PreparedArchiveInstall,
-        selection: InstallerSelection
+        selection: InstallerSelection,
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
     ): File {
+        cancellationSignal
+            .throwIfCancellationRequested()
+
         ensureDirectoryExists(
             directory = modsDir,
             description = "installed-mod directory"
         )
 
-        val finalDir = File(modsDir, prepared.modName)
+        val finalDir =
+            File(modsDir, prepared.modName)
         val stagedDir = File(
             modsDir,
-            "_installing_${prepared.modName}_${operationId()}"
+            "_installing_${prepared.modName}_" +
+                    operationId()
         )
-        val installRoot = File(prepared.installRootPath)
+        val installRoot =
+            File(prepared.installRootPath)
 
-        if (!installRoot.exists() || !installRoot.isDirectory) {
+        if (
+            !installRoot.exists() ||
+            !installRoot.isDirectory
+        ) {
             throw IOException(
                 "Prepared install root does not exist: " +
                         installRoot.absolutePath
@@ -133,18 +183,21 @@ class PreparedArchiveInstaller internal constructor(
 
         if (!stagedDir.mkdirs()) {
             throw IOException(
-                "Could not create staged prepared install folder: " +
+                "Could not create staged prepared " +
+                        "install folder: " +
                         stagedDir.absolutePath
             )
         }
 
         try {
-            val selectedOptions = prepared.plan.groups
-                .flatMap { it.options }
-                .filter { option ->
-                    option.required ||
-                            selection.selectedOptionIds.contains(option.id)
-                }
+            val selectedOptions =
+                prepared.plan.groups
+                    .flatMap { it.options }
+                    .filter { option ->
+                        option.required ||
+                                selection.selectedOptionIds
+                                    .contains(option.id)
+                    }
 
             if (selectedOptions.isEmpty()) {
                 throw IllegalStateException(
@@ -153,53 +206,83 @@ class PreparedArchiveInstaller internal constructor(
             }
 
             selectedOptions.forEach { option ->
+                cancellationSignal
+                    .throwIfCancellationRequested()
+
                 copyOption(
                     installRoot = installRoot,
                     option = option,
-                    finalDir = stagedDir
+                    finalDir = stagedDir,
+                    cancellationSignal =
+                        cancellationSignal
                 )
             }
 
-            val installedDir = directoryReplacer.replace(
-                stagedDir = stagedDir,
-                finalDir = finalDir
-            )
+            cancellationSignal
+                .throwIfCancellationRequested()
+
+            val installedDir =
+                directoryReplacer.replace(
+                    stagedDir = stagedDir,
+                    finalDir = finalDir
+                )
 
             cleanCompletedSession(prepared)
 
             return installedDir
         } catch (exception: Exception) {
+            val stagingCleanupFailure =
+                cleanFailedStaging(stagedDir)
+
+            if (
+                exception is
+                        InstallCancelledException
+            ) {
+                stagingCleanupFailure?.let(
+                    exception::addSuppressed
+                )
+
+                try {
+                    cancel(prepared)
+                } catch (
+                    cleanupException: Exception
+                ) {
+                    exception.addSuppressed(
+                        cleanupException
+                    )
+                }
+
+                throw exception
+            }
+
             val installFailure = IOException(
                 "Failed to finalize archive install for " +
-                        "${prepared.archiveName}: ${exception.message}",
+                        "${prepared.archiveName}: " +
+                        exception.message,
                 exception
             )
 
-            if (
-                stagedDir.exists() &&
-                !stagedDir.deleteRecursively()
-            ) {
-                installFailure.addSuppressed(
-                    IOException(
-                        "Could not clean failed prepared install staging: " +
-                                stagedDir.absolutePath
-                    )
-                )
-            }
+            stagingCleanupFailure?.let(
+                installFailure::addSuppressed
+            )
 
             throw installFailure
         }
     }
 
-    fun cancel(prepared: PreparedArchiveInstall) {
-        val sessionRoot = File(prepared.sessionRootPath)
+    fun cancel(
+        prepared: PreparedArchiveInstall
+    ) {
+        val sessionRoot =
+            File(prepared.sessionRootPath)
 
         if (
             sessionRoot.exists() &&
             !sessionRoot.deleteRecursively()
         ) {
             throw IOException(
-                "Could not remove prepared installer session: " +
+                "Could not remove prepared " +
+                        "installer session: " +
                         sessionRoot.absolutePath
             )
         }
@@ -208,15 +291,44 @@ class PreparedArchiveInstaller internal constructor(
     private fun cleanCompletedSession(
         prepared: PreparedArchiveInstall
     ) {
-        val sessionRoot = File(prepared.sessionRootPath)
+        val sessionRoot =
+            File(prepared.sessionRootPath)
 
         if (
             sessionRoot.exists() &&
             !sessionRoot.deleteRecursively()
         ) {
             debugLog(
-                "Prepared install succeeded, but its session " +
-                        "could not be removed: ${sessionRoot.absolutePath}"
+                "Prepared install succeeded, but its " +
+                        "session could not be removed: " +
+                        sessionRoot.absolutePath
+            )
+        }
+    }
+
+    private fun cleanFailedStaging(
+        stagedDir: File
+    ): IOException? {
+        if (!stagedDir.exists()) {
+            return null
+        }
+
+        return try {
+            if (stagedDir.deleteRecursively()) {
+                null
+            } else {
+                IOException(
+                    "Could not clean failed prepared " +
+                            "install staging: " +
+                            stagedDir.absolutePath
+                )
+            }
+        } catch (exception: Exception) {
+            IOException(
+                "Could not clean failed prepared " +
+                        "install staging: " +
+                        stagedDir.absolutePath,
+                exception
             )
         }
     }
@@ -225,7 +337,10 @@ class PreparedArchiveInstaller internal constructor(
         directory: File,
         description: String
     ) {
-        if (!directory.exists() && !directory.mkdirs()) {
+        if (
+            !directory.exists() &&
+            !directory.mkdirs()
+        ) {
             throw IOException(
                 "Could not create $description: " +
                         directory.absolutePath
@@ -234,7 +349,8 @@ class PreparedArchiveInstaller internal constructor(
 
         if (!directory.isDirectory) {
             throw IOException(
-                "Configured $description is not a directory: " +
+                "Configured $description is not " +
+                        "a directory: " +
                         directory.absolutePath
             )
         }
@@ -243,10 +359,17 @@ class PreparedArchiveInstaller internal constructor(
     private fun copyOption(
         installRoot: File,
         option: InstallerOption,
-        finalDir: File
+        finalDir: File,
+        cancellationSignal:
+        InstallCancellationSignal
     ) {
+        cancellationSignal
+            .throwIfCancellationRequested()
+
         val source = if (
-            isCurrentDirectoryPath(option.sourcePath)
+            isCurrentDirectoryPath(
+                option.sourcePath
+            )
         ) {
             installRoot
         } else {
@@ -267,13 +390,17 @@ class PreparedArchiveInstaller internal constructor(
             copyDirectoryOption(
                 source = source,
                 option = option,
-                finalDir = finalDir
+                finalDir = finalDir,
+                cancellationSignal =
+                    cancellationSignal
             )
         } else {
             copyFileOption(
                 source = source,
                 option = option,
-                finalDir = finalDir
+                finalDir = finalDir,
+                cancellationSignal =
+                    cancellationSignal
             )
         }
     }
@@ -281,16 +408,21 @@ class PreparedArchiveInstaller internal constructor(
     private fun copyDirectoryOption(
         source: File,
         option: InstallerOption,
-        finalDir: File
+        finalDir: File,
+        cancellationSignal:
+        InstallCancellationSignal
     ) {
         val destinationRoot = if (
-            isCurrentDirectoryPath(option.destinationPath)
+            isCurrentDirectoryPath(
+                option.destinationPath
+            )
         ) {
             finalDir
         } else {
             safeResolveInstallerPath(
                 root = finalDir,
-                relativePath = option.destinationPath
+                relativePath =
+                    option.destinationPath
             )
         }
 
@@ -299,45 +431,53 @@ class PreparedArchiveInstaller internal constructor(
             !destinationRoot.mkdirs()
         ) {
             throw IOException(
-                "Could not create installer destination: " +
+                "Could not create installer " +
+                        "destination: " +
                         destinationRoot.absolutePath
             )
         }
 
-        // Copy the selected folder as-is. Do not auto-collapse Data here;
-        // mixed root/Data mods such as SKSE must retain root-level files.
-        if (!source.copyRecursively(
-                target = destinationRoot,
-                overwrite = true
-            )
-        ) {
-            throw IOException(
-                "Could not copy installer directory: " +
-                        source.absolutePath
-            )
-        }
+        // Copy the selected folder as-is. Do not
+        // auto-collapse Data here; mixed root/Data
+        // mods such as SKSE must retain root files.
+        fileCopier(
+            source,
+            destinationRoot,
+            cancellationSignal
+        )
     }
 
     private fun copyFileOption(
         source: File,
         option: InstallerOption,
-        finalDir: File
+        finalDir: File,
+        cancellationSignal:
+        InstallCancellationSignal
     ) {
         val destination = if (
-            isCurrentDirectoryPath(option.destinationPath)
+            isCurrentDirectoryPath(
+                option.destinationPath
+            )
         ) {
             File(finalDir, source.name)
         } else {
-            val rawDestination = safeResolveInstallerPath(
-                root = finalDir,
-                relativePath = option.destinationPath
-            )
+            val rawDestination =
+                safeResolveInstallerPath(
+                    root = finalDir,
+                    relativePath =
+                        option.destinationPath
+                )
 
             if (
-                option.destinationPath.endsWith("/") ||
-                option.destinationPath.endsWith("\\")
+                option.destinationPath
+                    .endsWith("/") ||
+                option.destinationPath
+                    .endsWith("\\")
             ) {
-                File(rawDestination, source.name)
+                File(
+                    rawDestination,
+                    source.name
+                )
             } else {
                 rawDestination
             }
@@ -345,41 +485,54 @@ class PreparedArchiveInstaller internal constructor(
 
         val parent = destination.parentFile
             ?: throw IOException(
-                "Installer destination has no parent: " +
+                "Installer destination has no " +
+                        "parent: " +
                         destination.absolutePath
             )
 
-        if (!parent.exists() && !parent.mkdirs()) {
+        if (
+            !parent.exists() &&
+            !parent.mkdirs()
+        ) {
             throw IOException(
-                "Could not create installer destination parent: " +
+                "Could not create installer " +
+                        "destination parent: " +
                         parent.absolutePath
             )
         }
 
-        source.copyTo(
-            target = destination,
-            overwrite = true
+        fileCopier(
+            source,
+            destination,
+            cancellationSignal
         )
     }
 
-    private fun isCurrentDirectoryPath(path: String): Boolean {
+    private fun isCurrentDirectoryPath(
+        path: String
+    ): Boolean {
         val normalized = path
             .replace("\\", "/")
             .trim()
             .trim('/')
 
-        return normalized.isBlank() || normalized == "."
+        return normalized.isBlank() ||
+                normalized == "."
     }
 
     private fun normalizeInstallerRelativePath(
         relativePath: String
     ): String {
         return when (
-            val normalized = ArchiveEntryPath.normalize(relativePath)
+            val normalized =
+                ArchiveEntryPath.normalize(
+                    relativePath
+                )
         ) {
             ArchiveEntryPathResult.Ignore -> {
                 throw IOException(
-                    "Installer path is empty or invalid: " +
+                    "Installer path is empty or " +
+                            "invalid: " +
                             relativePath
                 )
             }
@@ -395,7 +548,9 @@ class PreparedArchiveInstaller internal constructor(
         relativePath: String
     ): File {
         val normalizedPath =
-            normalizeInstallerRelativePath(relativePath)
+            normalizeInstallerRelativePath(
+                relativePath
+            )
 
         return ArchiveEntryPath.safeResolve(
             root = root,

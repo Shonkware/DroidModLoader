@@ -62,6 +62,22 @@ internal class OperationReporter(
         appendLog(status.logText)
     }
 
+    fun cancelOperation(message: String) {
+        val status =
+            statusController.cancel(message)
+
+        runOnUiThread {
+            updateOperationInProgress(false)
+            updateActiveOperationText("")
+            updateLastOperationStatus(
+                status.statusText
+            )
+        }
+
+        showToast(status.toastText)
+        appendLog(status.logText)
+    }
+
     fun failOperation(message: String, throwable: Throwable? = null) {
         val status = statusController.fail(message)
 

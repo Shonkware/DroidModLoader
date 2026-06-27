@@ -104,11 +104,15 @@ class PreparedArchiveInstallerTest {
                 stagedDir = stagedDir,
                 finalDir = finalDir
             )
-            val replacer = InstalledModDirectoryReplacer(
-                operations = operations,
-                replacementId = { "backup" },
-                cleanupWarning = {}
-            )
+            val replacer =
+                InstalledModDirectoryReplacer(
+                    operations = operations,
+                    replacementId = { "test" },
+                    cleanupWarning = {},
+                    transactionStore =
+                        InstallReplacementTransactionStore()
+                )
+
             val installer = installer(
                 fixture = fixture,
                 directoryReplacer = replacer
@@ -221,13 +225,98 @@ class PreparedArchiveInstallerTest {
         }
     }
 
+    @Test
+    fun `cancellation during staging preserves installed mod and cleans work`() {
+        withFixture("cancelled-staging") { fixture ->
+            val finalDir = createInstalledMod(
+                modsDir = fixture.modsDir,
+                marker = "old"
+            )
+            val prepared = createPreparedInstall(
+                fixture = fixture,
+                sourceMarker = "new"
+            )
+
+            val installer = PreparedArchiveInstaller(
+                tempDir = fixture.tempDir,
+                modsDir = fixture.modsDir,
+                directoryReplacer =
+                    InstalledModDirectoryReplacer(
+                        operations =
+                            TestDirectoryOperations(),
+                        replacementId = { "backup" },
+                        cleanupWarning = {},
+                        transactionStore =
+                            InstallReplacementTransactionStore()
+                    ),
+                operationId = { "cancelled" },
+                debugLog = {},
+                fileCopier = {
+                        _,
+                        target,
+                        _ ->
+                    File(
+                        target,
+                        "partial.txt"
+                    ).apply {
+                        parentFile?.mkdirs()
+                        writeText("partial")
+                    }
+
+                    throw InstallCancelledException()
+                }
+            )
+
+            expectCancellation {
+                installer.finalizeInstall(
+                    prepared = prepared,
+                    selection = InstallerSelection(
+                        selectedOptionIds =
+                            emptySet()
+                    )
+                )
+            }
+
+            assertEquals(
+                "old",
+                File(
+                    finalDir,
+                    "marker.txt"
+                ).readText()
+            )
+            assertFalse(
+                File(
+                    prepared.sessionRootPath
+                ).exists()
+            )
+            assertNoInstallWorkDirectories(
+                fixture.modsDir
+            )
+        }
+    }
+    private fun expectCancellation(
+        action: () -> Unit
+    ): InstallCancelledException {
+        try {
+            action()
+            throw AssertionError(
+                "Expected InstallCancelledException"
+            )
+        } catch (
+            exception: InstallCancelledException
+        ) {
+            return exception
+        }
+    }
     private fun installer(
         fixture: Fixture,
         directoryReplacer: InstalledModDirectoryReplacer =
             InstalledModDirectoryReplacer(
                 operations = TestDirectoryOperations(),
                 replacementId = { "backup" },
-                cleanupWarning = {}
+                cleanupWarning = {},
+                transactionStore =
+                    InstallReplacementTransactionStore()
             )
     ): PreparedArchiveInstaller {
         return PreparedArchiveInstaller(
@@ -323,7 +412,8 @@ class PreparedArchiveInstallerTest {
                 .orEmpty()
                 .none { child ->
                     child.name.startsWith("_installing_") ||
-                            child.name.startsWith("_dml_backup_")
+                            child.name.startsWith("_dml_backup_") ||
+                            child.name.startsWith("_dml_transaction_")
                 }
         )
     }

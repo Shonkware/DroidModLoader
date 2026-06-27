@@ -28,6 +28,26 @@ internal class OperationStatusController {
         )
     }
 
+    fun cancel(message: String): OperationStatusEnd {
+        val durationText =
+            OperationLogFormatter
+                .formatOperationDuration(
+                    startedAtMillis
+                )
+
+        startedAtMillis = 0L
+
+        val cancelledText =
+            "$message ($durationText)"
+
+        return OperationStatusEnd(
+            statusText = cancelledText,
+            toastText = message,
+            logText =
+                "OPERATION CANCELLED: $cancelledText"
+        )
+    }
+
     fun fail(message: String): OperationStatusEnd {
         val durationText = OperationLogFormatter.formatOperationDuration(startedAtMillis)
         startedAtMillis = 0L

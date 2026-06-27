@@ -92,6 +92,9 @@ import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowser
 import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 import com.shonkware.droidmodloader.engine.storage.DirectStorageRootProvider
 import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
+import com.shonkware.droidmodloader.ui.workflow.InstallReplacementRecoveryEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.InstallReplacementStartupWorkflow
+import com.shonkware.droidmodloader.ui.workflow.ArchiveImportEngineAdapter
 
 class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActivityUiState() {
 
@@ -288,6 +291,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             },
             beginOperation = { message -> operationReporter.beginOperation(message) },
             finishOperation = { message -> operationReporter.finishOperation(message) },
+            cancelOperation = { message -> operationReporter.cancelOperation(message) },
             failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
             appendLog = { message -> operationReporter.appendLog(message) },
             appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
@@ -465,6 +469,15 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             },
             saveSelectedGameConfigFromUi = { profileSessionCoordinator.saveSelectedGameConfigFromUi() },
             loadSelectedGameConfigIntoUi = { profileSessionCoordinator.loadSelectedGameConfigIntoUi() },
+            recoverActiveProfile = {
+                profileScopedEngineFactory.create()?.let { engine ->
+                    installReplacementStartupWorkflow.checkStartup(
+                        InstallReplacementRecoveryEngineAdapter(
+                            engine
+                        )
+                    )
+                }
+            },
             syncPluginsFromCurrentState = {
                 val engine = profileScopedEngineFactory.create()
                 if (engine != null) {
@@ -754,25 +767,85 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
 
     private val archiveImportExecutionWorkflow: ArchiveImportExecutionWorkflow by lazy {
         ArchiveImportExecutionWorkflow(
-            operationInProgressProvider = { operationInProgress },
-            beginOperation = { message -> operationReporter.beginOperation(message) },
-            createEngine = { profileScopedEngineFactory.create() },
-            archiveImportFileStore = archiveImportFileStore,
-            showInstallerChoices = { prepared, archiveRecordId ->
+            operationInProgressProvider = {
+                operationInProgress
+            },
+            beginOperation = { message ->
+                operationReporter.beginOperation(message)
+            },
+            createEngine = {
+                profileScopedEngineFactory
+                    .create()
+                    ?.let { engine ->
+                        ArchiveImportEngineAdapter(
+                            engine = engine,
+                            syncPluginsFromCurrentState = {
+                                syncPluginsFromCurrentState(
+                                    engine
+                                )
+                            },
+                            appendRoutingSummary = { mod ->
+                                developerDiagnosticsCoordinator
+                                    .appendInstalledModRoutingSummary(
+                                        DeveloperDiagnosticsEngineAdapter(
+                                            engine
+                                        ),
+                                        mod
+                                    )
+                            }
+                        )
+                    }
+            },
+            archiveImportFileStore =
+                archiveImportFileStore,
+            showInstallerChoices = {
+                    prepared,
+                    archiveRecordId ->
                 runOnUiThread {
                     pendingArchiveInstall = prepared
-                    pendingInstallerArchiveRecordId = archiveRecordId
-                    pendingInstallerSelectedOptionIds = prepared.plan.defaultSelectedOptionIds
+                    pendingInstallerArchiveRecordId =
+                        archiveRecordId
+                    pendingInstallerSelectedOptionIds =
+                        prepared.plan
+                            .defaultSelectedOptionIds
                     showInstallerDialog = true
                     installerDialogFullscreen = false
                 }
             },
-            appendLog = { message -> operationReporter.appendLog(message) },
-            finishOperation = { message -> operationReporter.finishOperation(message) },
-            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
-            syncPluginsFromCurrentState = { engine -> syncPluginsFromCurrentState(engine) },
-            appendInstalledModRoutingSummary = { engine, mod ->
-                developerDiagnosticsCoordinator.appendInstalledModRoutingSummary(DeveloperDiagnosticsEngineAdapter(engine), mod)
+            appendLog = { message ->
+                operationReporter.appendLog(message)
+            },
+            appendError = {
+                    message,
+                    throwable ->
+                operationReporter.appendError(
+                    message,
+                    throwable
+                )
+            },
+            finishOperation = { message ->
+                operationReporter.finishOperation(message)
+            },
+            cancelOperation = { message ->
+                operationReporter.cancelOperation(message)
+            },
+            failOperation = {
+                    message,
+                    throwable ->
+                operationReporter.failOperation(
+                    message,
+                    throwable
+                )
+            },
+            updateLastOperationStatus = { status ->
+                runOnUiThread {
+                    lastOperationStatus = status
+                }
+            },
+            updateArchiveImportInProgress = { active ->
+                runOnUiThread {
+                    archiveImportInProgress = active
+                }
             },
             refreshDashboard = {
                 dashboardRefreshCoordinator.refresh()
@@ -880,6 +953,15 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
         )
     }
 
+    private val installReplacementStartupWorkflow by lazy {
+        InstallReplacementStartupWorkflow(
+            appendLog = operationReporter::appendLog,
+            appendError = { message ->
+                operationReporter.appendError(message)
+            }
+        )
+    }
+
     private val appStartupCoordinator by lazy {
         AppStartupCoordinator(
             runInBackground = activityThreadRunner::runInBackground,
@@ -899,7 +981,15 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             },
             createRuntime = profileScopedEngineFactory::create,
             checkRecovery = { engine ->
-                deployRecoveryWorkflow.checkStartup(DeployRecoveryEngineAdapter(engine))
+                installReplacementStartupWorkflow.checkStartup(
+                    InstallReplacementRecoveryEngineAdapter(
+                        engine
+                    )
+                )
+
+                deployRecoveryWorkflow.checkStartup(
+                    DeployRecoveryEngineAdapter(engine)
+                )
             },
             synchronizePluginsAndRefresh = pluginSyncWorkflowController::syncWithExistingEngineThenRefresh,
             appendLog = operationReporter::appendLog
@@ -928,7 +1018,9 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             loadSelectedGameConfigIntoUi = profileSessionCoordinator::loadSelectedGameConfigIntoUi,
             shareLogs = ::shareLogs,
             requestAllFilesAccess = ::requestAllFilesAccess,
-            appendLog = operationReporter::appendLog
+            appendLog = operationReporter::appendLog,
+            archiveImportExecutionWorkflow =
+                archiveImportExecutionWorkflow,
         )
     }
 

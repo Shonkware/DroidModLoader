@@ -1,8 +1,10 @@
 package com.shonkware.droidmodloader.engine.download
 
+import com.shonkware.droidmodloader.engine.install.ArchiveFormatProbe
+import com.shonkware.droidmodloader.engine.install.ArchiveFormatProbeException
+import com.shonkware.droidmodloader.engine.install.ArchiveProbeFailureCode
 import java.io.File
 import java.io.IOException
-import java.util.Locale
 
 class ArchiveFolderAccessException(message: String, cause: Throwable? = null) :
     IllegalStateException(message, cause)
@@ -21,7 +23,10 @@ data class ArchiveFolderScanResult(
     val entries: List<ArchiveFolderEntry>
 )
 
-class ArchiveFolderScanner {
+class ArchiveFolderScanner(
+    private val archiveFormatProbe:
+        ArchiveFormatProbe = ArchiveFormatProbe()
+) {
     fun scan(folderPath: String): ArchiveFolderScanResult {
         val root = try {
             File(folderPath).canonicalFile
@@ -41,21 +46,40 @@ class ArchiveFolderScanner {
         val entries = try {
             root.listFiles()
                 ?.asSequence()
-                ?.filter { it.isFile && it.canRead() }
+                ?.filter {
+                    it.isFile && it.canRead()
+                }
                 ?.mapNotNull { file ->
-                    if (!isSupportedArchiveName(file.name)) {
-                        return@mapNotNull null
+                    val canonical = file.canonicalFile
+
+                    val probeResult = try {
+                        archiveFormatProbe.probe(canonical)
+                    } catch (
+                        exception: ArchiveFormatProbeException
+                    ) {
+                        if (
+                            exception.code ==
+                            ArchiveProbeFailureCode.UNSUPPORTED_FORMAT
+                        ) {
+                            return@mapNotNull null
+                        }
+
+                        throw exception
                     }
 
-                    val canonical = file.canonicalFile
                     ArchiveFolderEntry(
-                        stableId = canonicalIdentityForPath(canonical.path) ?: canonical.path,
+                        stableId =
+                            canonicalIdentityForPath(canonical.path)
+                                ?: canonical.path,
                         sourcePath = canonical.path,
                         fileName = canonical.name,
-                        archiveFormat = canonical.name.substringAfterLast('.', "archive")
-                            .lowercase(Locale.ROOT),
-                        sizeBytes = canonical.length().coerceAtLeast(0L),
-                        lastModifiedMillis = canonical.lastModified().coerceAtLeast(0L)
+                        archiveFormat =
+                            probeResult.format.metadataLabel,
+                        sizeBytes =
+                            canonical.length().coerceAtLeast(0L),
+                        lastModifiedMillis =
+                            canonical.lastModified()
+                                .coerceAtLeast(0L)
                     )
                 }
                 ?.toList()
@@ -77,9 +101,4 @@ class ArchiveFolderScanner {
         if (path.isNullOrBlank()) return null
         return runCatching { File(path).canonicalPath }.getOrNull()
     }
-}
-
-internal fun isSupportedArchiveName(fileName: String): Boolean {
-    val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
-    return extension in setOf("zip", "7z", "rar")
 }

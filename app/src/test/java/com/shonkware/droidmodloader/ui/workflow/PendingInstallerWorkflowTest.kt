@@ -13,6 +13,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 
 class PendingInstallerWorkflowTest {
     @Test
@@ -207,6 +208,8 @@ class PendingInstallerWorkflowTest {
         val statuses = mutableListOf<String>()
         val beginMessages = mutableListOf<String>()
         val finishMessages = mutableListOf<String>()
+
+        val cancelMessages = mutableListOf<String>()
         val failures = mutableListOf<Pair<String, Throwable?>>()
         val selectedIdUpdates = mutableListOf<Set<String>>()
 
@@ -216,6 +219,7 @@ class PendingInstallerWorkflowTest {
             createEngine = { engine },
             beginOperation = { message -> beginMessages.add(message) },
             finishOperation = { message -> finishMessages.add(message) },
+            cancelOperation = { message -> cancelMessages.add(message) },
             failOperation = { message, throwable -> failures.add(message to throwable) },
             appendLog = { message -> logs.add(message) },
             appendError = { message, throwable -> errors.add(message to throwable) },
@@ -229,6 +233,58 @@ class PendingInstallerWorkflowTest {
                 this.session = null
             },
             refreshDashboard = { refreshCount++ }
+        )
+    }
+
+    @Test
+    fun cancelDuringFinalizeSignalsWorkerAndEndsAsCancelled() {
+        val engine =
+            FakePendingInstallerEngine()
+
+        lateinit var harness:
+                WorkflowHarness
+
+        engine.beforeFinalizeCompletes = {
+                cancellationSignal ->
+            harness.workflow
+                .cancelPendingInstall()
+
+            cancellationSignal
+                .throwIfCancellationRequested()
+        }
+
+        harness = WorkflowHarness(
+            engine = engine,
+            session = session()
+        )
+
+        harness.workflow
+            .finalizePendingInstall()
+
+        assertNull(harness.session)
+        assertEquals(1, harness.clearCount)
+        assertEquals(
+            listOf("Installer cancelled."),
+            harness.cancelMessages
+        )
+        assertEquals(
+            listOf("Cancelling installer..."),
+            harness.statuses
+        )
+        assertTrue(
+            harness.failures.isEmpty()
+        )
+        assertEquals(1, harness.refreshCount)
+        assertTrue(
+            harness.logs.contains(
+                "Installer cancellation requested for: " +
+                        "Example Archive.zip"
+            )
+        )
+        assertTrue(
+            harness.logs.contains(
+                "RESULT: CANCELLED"
+            )
         )
     }
 
@@ -246,6 +302,9 @@ class PendingInstallerWorkflowTest {
         val routingSummaryModIds = mutableListOf<String>()
         val cancelledArchiveNames = mutableListOf<String>()
         var cancelFailure: Exception? = null
+        var beforeFinalizeCompletes:
+                ((InstallCancellationSignal) -> Unit)? =
+            null
 
         override fun getCurrentMods(): List<Mod> = currentMods
 
@@ -253,12 +312,18 @@ class PendingInstallerWorkflowTest {
             prepared: PreparedArchiveInstall,
             selectedOptionIds: Set<String>,
             priority: Int,
-            sourceType: String
+            sourceType: String,
+            cancellationSignal:
+            InstallCancellationSignal
         ): Mod {
             finalizeCalled = true
             finalizedSelectedOptionIds = selectedOptionIds
             finalizedPriority = priority
             finalizedSourceType = sourceType
+
+            beforeFinalizeCompletes?.invoke(
+                cancellationSignal
+            )
 
             val installed = Mod(
                 id = "installed",

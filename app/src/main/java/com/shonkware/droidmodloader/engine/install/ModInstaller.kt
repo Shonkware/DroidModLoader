@@ -7,21 +7,39 @@ import java.io.IOException
 class ModInstaller internal constructor(
     private val tempDir: File,
     private val modsDir: File,
-    private val extractArchive: (File, File) -> Unit,
-    private val directoryReplacer: InstalledModDirectoryReplacer,
+    private val extractArchive:
+        (
+        File,
+        File,
+        InstallCancellationSignal
+    ) -> Unit,
+    private val directoryReplacer:
+    InstalledModDirectoryReplacer,
     private val installId: () -> String,
-    private val debugLog: (String) -> Unit
+    private val debugLog: (String) -> Unit,
+    private val fileCopier:
+        (
+        File,
+        File,
+        InstallCancellationSignal
+    ) -> Unit =
+        InstallFileCopier::copyRecursively
 ) {
     constructor(
         tempDir: File,
         modsDir: File,
-        archiveExtractor: ArchiveExtractor = ArchiveExtractor()
+        archiveExtractor:
+        ArchiveExtractor = ArchiveExtractor()
     ) : this(
         tempDir = tempDir,
         modsDir = modsDir,
-        extractArchive = archiveExtractor::extractToRawFolder,
-        directoryReplacer = InstalledModDirectoryReplacer(),
-        installId = { System.currentTimeMillis().toString() },
+        extractArchive =
+            archiveExtractor::extractToRawFolder,
+        directoryReplacer =
+            InstalledModDirectoryReplacer(),
+        installId = {
+            System.currentTimeMillis().toString()
+        },
         debugLog = { message ->
             Log.d(TAG, message)
         }
@@ -31,9 +49,18 @@ class ModInstaller internal constructor(
         private const val TAG = "DroidModLoader"
     }
 
-    fun installArchive(archive: File): File {
+    fun installArchive(
+        archive: File,
+        cancellationSignal:
+        InstallCancellationSignal =
+            InstallCancellationSignal.NONE
+    ): File {
+        cancellationSignal
+            .throwIfCancellationRequested()
+
         debugLog(
-            "ModInstaller.installArchive start: ${archive.absolutePath}"
+            "ModInstaller.installArchive start: " +
+                    archive.absolutePath
         )
         debugLog(
             "Archive exists=${archive.exists()} " +
@@ -46,9 +73,12 @@ class ModInstaller internal constructor(
             tempDir,
             "direct_install_$operationId"
         )
-        val rawRoot = File(extractFolder, "raw")
-        val modName = archive.nameWithoutExtension
-        val finalDir = File(modsDir, modName)
+        val rawRoot =
+            File(extractFolder, "raw")
+        val modName =
+            archive.nameWithoutExtension
+        val finalDir =
+            File(modsDir, modName)
         val stagedDir = File(
             modsDir,
             "_installing_${modName}_$operationId"
@@ -57,11 +87,13 @@ class ModInstaller internal constructor(
         try {
             ensureDirectoryExists(
                 directory = tempDir,
-                description = "temporary installer directory"
+                description =
+                    "temporary installer directory"
             )
             ensureDirectoryExists(
                 directory = modsDir,
-                description = "installed-mod directory"
+                description =
+                    "installed-mod directory"
             )
 
             if (extractFolder.exists()) {
@@ -85,49 +117,65 @@ class ModInstaller internal constructor(
                 )
             }
 
-            extractArchive(archive, rawRoot)
+            extractArchive(
+                archive,
+                rawRoot,
+                cancellationSignal
+            )
 
-            val normalizedRoot = normalizeExtractedStructure(rawRoot)
+            cancellationSignal
+                .throwIfCancellationRequested()
 
-            if (!normalizedRoot.exists() || !normalizedRoot.isDirectory) {
+            val normalizedRoot =
+                normalizeExtractedStructure(rawRoot)
+
+            if (
+                !normalizedRoot.exists() ||
+                !normalizedRoot.isDirectory
+            ) {
                 throw IOException(
                     "Extracted mod content is not a directory: " +
                             normalizedRoot.absolutePath
                 )
             }
 
-            if (!normalizedRoot.copyRecursively(
-                    target = stagedDir,
-                    overwrite = true
-                )
-            ) {
-                throw IOException(
-                    "Could not copy extracted mod content into staging."
-                )
-            }
+            fileCopier(
+                normalizedRoot,
+                stagedDir,
+                cancellationSignal
+            )
+
+            cancellationSignal
+                .throwIfCancellationRequested()
 
             return directoryReplacer.replace(
                 stagedDir = stagedDir,
                 finalDir = finalDir
             )
         } catch (exception: Exception) {
+            val stagingCleanupFailure =
+                cleanFailedStaging(stagedDir)
+
+            if (
+                exception is
+                        InstallCancelledException
+            ) {
+                stagingCleanupFailure?.let(
+                    exception::addSuppressed
+                )
+                throw exception
+            }
+
             val installFailure = IOException(
-                "Archive install failed for ${archive.name}: " +
+                "Archive install failed for " +
+                        "${archive.name}: " +
                         exception.message,
                 exception
             )
 
-            if (
-                stagedDir.exists() &&
-                !stagedDir.deleteRecursively()
-            ) {
-                installFailure.addSuppressed(
-                    IOException(
-                        "Could not clean the failed staged install: " +
-                                stagedDir.absolutePath
-                    )
-                )
-            }
+            stagingCleanupFailure?.let(
+                installFailure::addSuppressed
+            )
 
             throw installFailure
         } finally {
@@ -136,10 +184,38 @@ class ModInstaller internal constructor(
                 !extractFolder.deleteRecursively()
             ) {
                 debugLog(
-                    "Could not clean direct-install session: " +
+                    "Could not clean direct-install " +
+                            "session: " +
                             extractFolder.absolutePath
                 )
             }
+        }
+    }
+
+    private fun cleanFailedStaging(
+        stagedDir: File
+    ): IOException? {
+        if (!stagedDir.exists()) {
+            return null
+        }
+
+        return try {
+            if (stagedDir.deleteRecursively()) {
+                null
+            } else {
+                IOException(
+                    "Could not clean the failed staged " +
+                            "install: " +
+                            stagedDir.absolutePath
+                )
+            }
+        } catch (exception: Exception) {
+            IOException(
+                "Could not clean the failed staged " +
+                        "install: " +
+                        stagedDir.absolutePath,
+                exception
+            )
         }
     }
 
@@ -147,7 +223,10 @@ class ModInstaller internal constructor(
         directory: File,
         description: String
     ) {
-        if (!directory.exists() && !directory.mkdirs()) {
+        if (
+            !directory.exists() &&
+            !directory.mkdirs()
+        ) {
             throw IOException(
                 "Could not create $description: " +
                         directory.absolutePath
@@ -156,18 +235,26 @@ class ModInstaller internal constructor(
 
         if (!directory.isDirectory) {
             throw IOException(
-                "Configured $description is not a directory: " +
+                "Configured $description is not " +
+                        "a directory: " +
                         directory.absolutePath
             )
         }
     }
 
-    private fun normalizeExtractedStructure(root: File): File {
-        val children = root.listFiles() ?: return root
+    private fun normalizeExtractedStructure(
+        root: File
+    ): File {
+        val children =
+            root.listFiles() ?: return root
 
-        if (children.size == 1 && children[0].isDirectory) {
+        if (
+            children.size == 1 &&
+            children[0].isDirectory
+        ) {
             val child = children[0]
-            val dataFolder = File(child, "Data")
+            val dataFolder =
+                File(child, "Data")
 
             if (dataFolder.exists()) {
                 return dataFolder
@@ -176,7 +263,8 @@ class ModInstaller internal constructor(
             return child
         }
 
-        val dataFolder = File(root, "Data")
+        val dataFolder =
+            File(root, "Data")
 
         if (dataFolder.exists()) {
             return dataFolder
