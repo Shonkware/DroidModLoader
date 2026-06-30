@@ -1,44 +1,25 @@
 # Droid Mod Loader Current Priorities
 
-This page tracks the focused work required to finish `v0.7.0-beta`. It is
-shorter than the full roadmap and does not describe release-candidate behavior
-as publicly released until the tagged APK is published.
+This page tracks the focused work immediately after `v0.7.0-beta`. It is
+shorter than the full roadmap and should not be used as a substitute for scoped
+implementation tasks.
 
-## 1. Complete `v0.7.0-beta` release validation
+## 1. Monitor the `v0.7.0-beta` release
 
 **Status:** Active
-**Requirements:** `REQ-MOD-001`, `REQ-RELEASE-001`, `REQ-RELEASE-002`,
-`REQ-RELEASE-003`, `REQ-STORAGE-002`
 
-The reliable-foundation implementation is complete. Remaining work is release
-validation rather than another archive-engine feature phase.
+Review reproducible reports for:
 
-Required checks:
+- archive compatibility and failure classification;
+- cancellation and cleanup behavior;
+- interrupted replacement recovery;
+- direct-path profile persistence;
+- plugin ordering and output; and
+- safe deployment behavior.
 
-- run the current real-archive compatibility matrix for ZIP, 7Z, RAR4, RAR5,
-  encrypted, multipart, corrupt, renamed, and extensionless samples;
-- verify cancellation and cleanup during large archive copying and extraction;
-- verify interrupted replacement recovery;
-- install the candidate over the public `v0.6.0-beta` APK and confirm profile,
-  path, archive, mod, plugin, and deployment state retention;
-- build and verify the signed APK; and
-- install and test the exact artifact intended for upload.
+Only release-blocking regressions should interrupt the next planning phase.
 
-## 2. Finish release documentation and packaging
-
-**Status:** In progress
-
-Before publication:
-
-- complete the `v0.7.0-beta` changelog and release notes;
-- record known unsupported archive variants accurately;
-- update the release date after final approval;
-- generate the versioned APK filename and SHA-256 checksum; and
-- prepare matching GitHub and Nexus Mods upload packages.
-
-Publication remains manual for this release.
-
-## 3. Preserve archive-install safety guarantees
+## 2. Preserve archive-install safety guarantees
 
 **Status:** Ongoing release rule
 
@@ -51,9 +32,24 @@ Archive changes must continue to preserve these guarantees:
 - interrupted replacement state remains recoverable; and
 - unsupported variants fail with a specific, understandable message.
 
+## 3. Scope `v0.8.0-beta`
+
+**Status:** Next implementation-planning task
+
+Prepare coherent tasks for:
+
+- stronger Game Root and `Data` validation;
+- clearer setup and reselection guidance;
+- deployment and recovery polish;
+- safe output-location handling; and
+- release-grade diagnostics for those workflows.
+
+Do not pull broad UI redesign, LOOT, xEdit, collections, or full Nexus browsing
+into the first `v0.8.0-beta` task without a separate scope decision.
+
 ## 4. Define the stable 1.0 acceptance boundary
 
-**Status:** Next planning task after `v0.7.0-beta`
+**Status:** Ongoing planning
 
 Classify Nexus integration, target validation, deployment and recovery polish,
 conflict presentation, adaptive navigation, separators, details views, themes,

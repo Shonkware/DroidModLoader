@@ -107,13 +107,14 @@ maintain different setups for the same game.
 
 ## Project status
 
-The latest public release is `v0.6.0-beta`. The `main` branch contains
-post-release maintenance and architecture cleanup, but no newer public version
-has been released.
+The latest public release is `v0.7.0-beta`, the Reliable Foundation release.
+It completes the direct-filesystem transition, strengthens archive detection
+and extraction safety, protects existing installed mods during replacement,
+and adds cancellation and interrupted-install recovery.
 
-The next feature work is still being planned. Near-term priorities are archive
-extraction reliability, clearer failure reporting, and defining the required
-scope for a stable 1.0 release.
+The next development phase will focus on safe setup, stronger game-folder
+validation, deployment and recovery polish, and the remaining work required for
+a stable 1.0 release.
 
 See [Current Status](CURRENT_STATUS.md),
 [Current Priorities](docs/tasks/current-priorities.md), and the

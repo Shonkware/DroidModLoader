@@ -45,128 +45,39 @@ The core data flow is:
 
 ## Current Baseline
 
-The public release and the development branch must be described separately.
+### Public release: `v0.7.0-beta`
 
-### Public release: `v0.6.0-beta`
+The latest public release is `v0.7.0-beta`, the Reliable Foundation release.
 
-The latest public release is `v0.6.0-beta`.
+It includes:
 
-It introduced the profile specific Archive Library and includes early support for:
+- the profile-specific Archive Library;
+- Tale of Two Wastelands profile support;
+- direct-filesystem storage for shared-storage workflows;
+- game-aware plugin activation and ordering;
+- extracted `MainActivity` workflows and `ModEngine` services;
+- signature-based ZIP, 7Z, RAR4, and RAR5 classification;
+- bounded, path-safe archive extraction;
+- transactional installed-mod replacement and recovery;
+- cooperative archive import and install cancellation; and
+- release-version automation and aligned release documentation.
 
-- profile creation and switching
-- managed mod folders
-- archive import
-- profile specific archive browsing, search, refresh, and folder switching
-- ZIP, 7Z, and supported RAR archive handling
-- basic BAIN and FOMOD detection
-- mod enable and disable
-- mod priority
-- plugin scanning
-- plugin enable and disable
-- plugin output files
-- deployment planning
-- deployment journal and recovery foundations
-- baseline and overwrite foundations
-- diagnostics and logs
-- experimental second-screen plugin display
+These systems remain beta foundations rather than a claim of full desktop mod
+manager parity.
 
-These systems are functional foundations, not a claim of stable desktop-mod-manager parity.
+### Development after `v0.7.0-beta`
 
-### Development branch after `v0.6.0-beta`
-
-The `main` branch contains completed post-release work that is not part of the public `v0.6.0-beta` APK:
-
-- migration to one direct-filesystem storage backend
-- Android 11 minimum-version enforcement for direct storage
-- profile-specific direct paths for Game Root, `Data`, and Archive Library folders
-- game-aware plugin activation and ordering
-- timestamp ordering for Fallout: New Vegas, Fallout 3, and Oblivion
-- Skyrim Legendary Edition text-file ordering behavior
-- direct-storage and disposable-folder validation
-- completed `MainActivity` responsibility extraction
-- completed `ModEngine` service extraction
-
-This work becomes part of the next release only after release validation, documentation, packaging, and tagging are complete.
-
-See `CURRENT_STATUS.md` for the current branch state and latest recorded validation.
-
-## Stable 1.0 Boundary
-
-`v1.0.0` is the first stable public release.
-
-Stable 1.0 means Droid Mod Loader provides a safe, understandable, and repeatable core mod-management workflow. It does not mean complete Mod Organizer 2, Vortex, LOOT, xEdit, Nexus Mods, or scripted-installer parity.
-
-The following areas must be reliable enough to block stable 1.0:
-
-### Archive installation
-
-- Supported archives install without corrupting managed state.
-- Unsupported archive variants fail clearly.
-- Partial extraction does not become a successful install.
-- Temporary files are cleaned up safely.
-- Existing installed mods are not damaged by a failed import.
-
-### Profiles and game setup
-
-- Profile state remains isolated.
-- The selected game, Game Root, `Data` folder, and output state are clear.
-- Invalid or suspicious targets are detected before deployment.
-- Target changes do not silently reuse incompatible deployment state.
-- Supported games apply the correct plugin activation and ordering rules.
-
-### Deployment and recovery
-
-- Deployment plans are based on the active profile and target.
-- Deployment manifests and baselines are scoped to the correct target.
-- Interrupted deployment is detected.
-- Recovery actions are understandable and safe.
-- Existing unmanaged files are not blindly removed.
-- Full redeployment is available when required by target or state changes.
-
-### Conflict and overwrite visibility
-
-- The app can determine file winners from enabled mods and priority.
-- Users can identify which mod wins or loses a conflict.
-- Identical duplicates can be distinguished from meaningful conflicts where practical.
-- Generated or changed files outside the managed mod folders are not silently treated as normal managed input.
-
-### Plugin correctness
-
-- Plugins can be discovered, enabled, disabled, and ordered.
-- Output follows the active game's rules.
-- Basic high-value warnings are available, including missing masters, duplicate names, disabled source mods, missing files, and plugin/archive mismatches where supported.
-- Diagnostics describe likely fixes in normal language.
-
-### Diagnostics and support
-
-- Diagnostics include the active profile, game, target identity, plugin output state, unfinished deployment state, and useful archive failure details.
-- A support report can be exported without exposing unrelated private files.
-- Errors identify the failed operation and the safest next action.
-
-### Usable Android workflow
-
-- The normal path is understandable on portrait and landscape screens.
-- Routine navigation is centered on Home, Mods, Plugins, and Deploy.
-- Game and profile context remain visible.
-- Advanced and developer tools do not dominate the normal workflow.
-- Recovery remains accessible as a user safety feature.
-- Accessibility labels and touch targets are adequate for the stable workflow.
-
-### Verification and release readiness
-
-- Risky file behavior has focused automated tests.
-- Upgrade behavior from the previous public beta is tested.
-- A debug build passes repository checks before release work.
-- The release candidate is tested on representative Android storage and game-folder layouts.
-- Release notes, user documentation, GitHub, and Nexus Mods information agree.
+The next development phase is `v0.8.0-beta`, focused on safe setup, stronger
+game-folder validation, deployment and recovery polish, and clearer diagnostics.
+Work must be converted into scoped tasks before implementation begins.
 
 ## Release Sequence
 
 The remaining beta releases should narrow the gap to stable 1.0 in clear stages.
 
-## `v0.7.0-beta` — Reliable Foundation
+## `v0.7.0-beta` — Reliable Foundation — Released 2026-06-29
 
-The purpose of `v0.7.0-beta` is to turn the current development branch into a dependable baseline for later feature work.
+`v0.7.0-beta` established the dependable baseline for later feature work.
 
 Primary scope:
 

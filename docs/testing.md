@@ -217,20 +217,22 @@ Run the JVM unit-test suite with:
 ```bash
 ./gradlew testDebugUnitTest
 ```
-## `v0.7.0-beta` Release-Candidate Checks
+## `v0.7.0-beta` Release Validation
 
-Before publication, record results for:
+The release candidate passed:
 
-- a fresh install of the exact signed candidate;
+- fresh-install validation;
 - an in-place upgrade from the public `v0.6.0-beta` APK;
 - retention of profiles, direct paths, archive history, installed mods, plugin
   state, and deployment state;
 - the real-archive compatibility matrix;
 - cancellation during a large archive copy and extraction;
-- startup recovery after an interrupted replacement;
-- package name, version name, version code, APK signature, and signing
-  certificate fingerprint; and
+- startup recovery after an interrupted replacement; and
 - safe-folder deployment followed by force-stop and restart.
+
+Before upload, verify the exact signed APK's package name, version name, version
+code, signature, and signing-certificate fingerprint, then distribute that same
+artifact through GitHub and the Nexus release package.
 
 ## Release Rule
 

@@ -28,7 +28,7 @@ Use this format for each release:
 
 - Anything users should do before or after updating.
 
-## v0.7.0-beta - Unreleased
+## v0.7.0-beta - 2026-06-29
 
 ### Added
 
