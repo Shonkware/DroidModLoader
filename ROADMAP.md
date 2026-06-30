@@ -425,25 +425,27 @@ Architecture cleanup should support product work. It should not become an open-e
 
 ## Current Priority
 
-The immediate implementation priority is `v0.7.0-beta` archive-install safety:
+The immediate priority is `v0.7.0-beta` release hardening and publication:
 
-1. improve archive extraction compatibility and diagnostics
-2. prevent partial or failed extraction from becoming installed state
-3. clean temporary files safely
-4. add focused archive regression tests
-5. validate the completed post-release architecture and storage changes
-6. prepare and verify the `v0.7.0-beta` release
+1. complete the real-archive compatibility matrix on the versioned candidate
+2. validate an in-place upgrade from the public `v0.6.0-beta` APK
+3. verify direct-path profile and managed-state retention
+4. build and inspect the signed release APK
+5. test the exact upload artifact on Android
+6. finalize checksums, notes, known issues, tag, and public uploads
 
-Do not begin broad `v0.8.0-beta` setup or deployment work until the reliable-foundation release is complete or the roadmap is deliberately revised.
+The archive-install safety implementation is complete. Do not begin broad
+`v0.8.0-beta` setup or deployment work until the reliable-foundation release is
+published or the roadmap is deliberately revised.
 
 ## Documentation Alignment
 
-After this roadmap boundary is accepted:
+For the release candidate:
 
-- update `docs/decisions.md` with the stable-1.0 boundary and release sequence
-- remove the completed roadmap-boundary task from `docs/tasks/current-priorities.md`
-- keep `CURRENT_STATUS.md` focused on actual repository state
-- reconcile requirement statuses without marking planned work as working
-- update the README so it does not list post-1.0 integrations as stable-release blockers
-- keep release notes limited to behavior present in the tagged APK
+- keep `CURRENT_STATUS.md` focused on actual repository and release state
+- keep `docs/tasks/current-priorities.md` limited to remaining release work
+- reconcile requirement and testing language with signature-based archive
+  handling and transactional installation
+- keep release notes limited to behavior present in the tested APK
+- replace `Unreleased` and pending test notes only after final validation
 - update the Nexus Mods page whenever the public DML version changes

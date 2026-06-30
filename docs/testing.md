@@ -35,20 +35,34 @@ Risk order:
 
 ### Mod Import
 
-- ZIP import works.
-- 7z import works.
-- RAR import works if supported.
-- Installed mod appears in the mod list.
+- Ordinary ZIP import works.
+- Ordinary 7Z import works.
+- RAR4 import works.
+- RAR5 is detected and rejected with a specific unsupported-variant message.
+- Password-protected, encrypted, multipart, corrupt, and unsupported archives
+  fail with the clearest available message.
+- A supported archive renamed to another extension is still detected from its
+  content.
+- A supported extensionless archive is still detected from its content.
+- Installed mod appears in the mod list only after staging and promotion
+  complete.
+- Replacing an installed mod preserves the prior installation if promotion
+  fails.
+- Cancelling archive copying, preparation, or installation does not leave a
+  partial installed mod.
+- Interrupted replacement state is recovered after restart or profile
+  activation.
 - Mod can be enabled and disabled.
-- Bad archive fails with a useful message.
 
 ### Archive Folder Browser
 
 - First use explains why an archive folder is required.
 - Selecting a folder persists after app restart.
 - Cancelling folder selection leaves the previous folder unchanged.
-- Only top-level ZIP, 7Z, and RAR files appear.
-- Unsupported files and subfolders are ignored.
+- Top-level files with recognized ZIP, 7Z, RAR4, or RAR5 signatures appear,
+  even when their extension is missing or incorrect.
+- Ordinary unsupported files and subfolders are ignored.
+- Archive format labels are derived from content rather than the filename.
 - Refresh detects files added or removed outside DML.
 - Lost folder permission shows a clear Change Folder recovery path.
 - Search filters without losing the selected folder.
@@ -181,11 +195,16 @@ Current coverage includes:
 - profile storage paths and legacy-state migration;
 - plugin discovery, game-aware activation output, transactional plugin-output
   replacement, and rollback-safe legacy timestamp ordering;
-- archive-folder scanning, archive metadata, downloaded-archive records, and
-  Nexus URL parsing;
+- archive signature probing, reader routing, ZIP and 7Z compatibility,
+  precise RAR failure classification, bounded extraction, path safety,
+  duplicate and case-collision rejection, and storage-headroom checks;
+- transactional installed-mod replacement, retained transaction recovery,
+  cooperative cancellation, and partial-file cleanup;
+- archive-folder scanning, signature-based metadata, downloaded-archive records,
+  and Nexus URL parsing;
 - installer option selection and display-name normalization; and
-- archive, deployment, mod, plugin, pending-installer, and profile workflow
-  coordination.
+- archive import, deployment, mod, plugin, pending-installer, startup, and
+  profile workflow coordination.
 
 Inspect the exact current test files with:
 
@@ -198,6 +217,21 @@ Run the JVM unit-test suite with:
 ```bash
 ./gradlew testDebugUnitTest
 ```
+## `v0.7.0-beta` Release-Candidate Checks
+
+Before publication, record results for:
+
+- a fresh install of the exact signed candidate;
+- an in-place upgrade from the public `v0.6.0-beta` APK;
+- retention of profiles, direct paths, archive history, installed mods, plugin
+  state, and deployment state;
+- the real-archive compatibility matrix;
+- cancellation during a large archive copy and extraction;
+- startup recovery after an interrupted replacement;
+- package name, version name, version code, APK signature, and signing
+  certificate fingerprint; and
+- safe-folder deployment followed by force-stop and restart.
+
 ## Release Rule
 
 A release should not be uploaded until:

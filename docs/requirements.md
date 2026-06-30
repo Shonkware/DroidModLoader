@@ -80,14 +80,23 @@ Droid Mod Loader must import supported mod archives.
 Supported formats:
 
 - ZIP
-- 7z
-- RAR where supported
+- 7Z
+- RAR4
+
+Recognized but unsupported variants include RAR5, encrypted or
+password-protected archives, and multipart RAR archives.
 
 Done when:
 
 - the archive can be selected
-- the app extracts it into a managed mod folder
-- the installed mod appears in the mod list
+- format detection uses archive content rather than trusting the extension
+- extraction is bounded and rejects unsafe paths or collisions
+- the app stages content before promoting it into a managed mod folder
+- replacing an installed mod preserves the prior installation until promotion
+  succeeds
+- cancellation and failure do not create a partial installed state
+- interrupted replacement state can be recovered
+- the installed mod appears in the mod list only after success
 - failure gives a useful message
 
 ### REQ-MOD-002: Keep Mods Isolated
@@ -129,17 +138,19 @@ Done when:
 
 ### REQ-MOD-005: Browse a Remembered Archive Folder
 
-Status: In Progress
+Status: Working
 
 Droid Mod Loader must let the user select one direct-access Android folder that
-contains downloaded mod archives, remember that path, and present supported
+contains downloaded mod archives, remember that path, and present recognized
 archives in a searchable install list.
 
 Done when:
 
 - first use explains why the folder is needed
 - each profile remembers its own selected folder across app restarts
-- ZIP, 7Z, and RAR files directly inside the folder are listed
+- readable top-level files with recognized ZIP, 7Z, RAR4, or RAR5 signatures
+  are listed regardless of filename extension
+- ordinary unsupported files and subfolders are ignored
 - the list can be refreshed without continuously monitoring storage
 - installed and previously installed archives are identified for the active profile
 - selecting Install routes through the existing archive import pipeline
@@ -520,7 +531,7 @@ Done when:
 
 ### REQ-RELEASE-002: Changelog
 
-Status: Planned
+Status: In Progress
 
 Every release must update the changelog.
 
@@ -534,7 +545,7 @@ Done when:
 
 ### REQ-RELEASE-003: Release Checklist
 
-Status: Planned
+Status: In Progress
 
 Every release must pass a checklist before upload.
 

@@ -128,6 +128,37 @@ The services depend on existing repositories, planners, scanners, resolvers, and
 managers. They do not depend on UI classes or hold a reference back to
 `ModEngine`.
 
+## Archive Import and Installation Flow
+
+Archive filenames are display metadata, not trusted format declarations.
+`ArchiveFormatProbe.kt` reads content signatures and identifies ZIP, 7Z, RAR4,
+or RAR5 before a reader is selected. `ArchiveReaderRegistry.kt` routes supported
+formats and rejects recognized but unsupported variants such as RAR5 with a
+specific error.
+
+Archive extraction and installation responsibilities are separated as follows:
+
+- `ArchiveEntryWriter.kt` normalizes entry paths and enforces traversal,
+  duplicate, case-collision, entry-count, file-size, total-size, path-length,
+  and storage-headroom limits.
+- `ArchiveExtractor.kt` coordinates the selected reader and bounded writer.
+- `PreparedArchiveInstaller.kt` extracts into an isolated session, analyzes the
+  layout, copies selected installer content into staging, and promotes only a
+  completed staged directory.
+- `InstallReplacementTransaction.kt` records replacement progress before the
+  existing installed mod is moved or new staging is promoted.
+- `InstallReplacementRecovery.kt` resolves retained transactions during startup
+  and active-profile initialization.
+- `InstallCancellation.kt` and `InstallFileCopier.kt` provide cooperative
+  cancellation across archive copying, extraction, preparation, and finalization.
+- `ArchiveImportExecutionWorkflow.kt` keeps a registered archive when later
+  installation is cancelled, but removes a copied file that was never
+  registered.
+
+An existing installed mod remains authoritative until the replacement staging
+has completed and promotion succeeds. Failed, cancelled, or interrupted work
+must not be presented as a successful installation.
+
 ## Plugin Activation and Ordering Flow
 
 Plugin state remains profile-scoped. `ProfileScopedEngineFactory.kt` constructs
@@ -238,7 +269,8 @@ Responsibilities are separated as follows:
   Archive Library path by profile ID and marks legacy URI-only selections for
   explicit reselection.
 - `engine/download/ArchiveFolderScanner.kt` performs a read-only, top-level direct
-  scan for ZIP, 7Z, and RAR files.
+  scan of readable files, uses content signatures to identify supported archive
+  families, and ignores ordinary unsupported files.
 - `ui/workflow/ArchiveBrowserWorkflow.kt` combines scanned files with profile
   archive history, sorting, status, refresh, and install routing.
 - `ArchiveImportExecutionWorkflow` copies the selected direct source file into

@@ -309,3 +309,31 @@ call sites are migrated.
 Related: REQ-STORAGE-001, REQ-STORAGE-002, REQ-GAME-001, REQ-GAME-003,
 REQ-MOD-001, REQ-MOD-005, REQ-DEPLOY-002, REQ-PLUGIN-005, REQ-PROFILE-002,
 `docs/tasks/direct-storage-migration.md`.
+
+## 2026-06-29 - Detect Archive Content and Commit Installs Transactionally
+
+Status: Accepted.
+
+Decision: Droid Mod Loader identifies supported archive families from file
+signatures instead of trusting filename extensions. Archive installation stages
+and validates content before replacing an installed mod, records replacement
+progress on disk, and supports cooperative cancellation.
+
+Reason: Extensions can be missing or incorrect, and archive processing can fail
+or be interrupted after copying or extraction has started. Treating a partial
+folder as installed or deleting the prior mod before promotion would make
+failure destructive.
+
+Result: ZIP, 7Z, RAR4, and RAR5 signatures are recognized consistently across
+installation and the Archive Library. Supported readers receive bounded safe
+extraction. Existing installations remain in place until completed staging is
+promoted, retained transactions are recovered at startup and profile
+activation, and cancelled work removes partial output where possible. RAR5 is
+recognized but remains explicitly unsupported for installation.
+
+Related: REQ-MOD-001, REQ-MOD-002, REQ-MOD-005,
+`engine/install/ArchiveFormatProbe.kt`,
+`engine/install/ArchiveEntryWriter.kt`,
+`engine/install/InstallReplacementTransaction.kt`,
+`engine/install/InstallReplacementRecovery.kt`,
+`ui/workflow/ArchiveImportExecutionWorkflow.kt`.

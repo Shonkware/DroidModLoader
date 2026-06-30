@@ -1,69 +1,85 @@
 # Current Status
 
 - **Latest public release:** `v0.6.0-beta`
+- **Release candidate:** `v0.7.0-beta`
 - **Minimum Android version:** Android 11 / API 30
-- **Development state:** Maintenance and planning after `v0.6.0-beta`
+- **Development state:** Release preparation and validation
 - **Storage model:** Direct filesystem access for shared-storage workflows
 
 ## Release and source state
 
-The public release remains `v0.6.0-beta`. The `main` branch contains completed
-post-release refactoring and documentation maintenance, but it is not a newer
-release.
+The public release remains `v0.6.0-beta`. The current source contains the
+`v0.7.0-beta` reliable-foundation work, and the release branch is preparing the
+versioned candidate, changelog, release notes, packaging, and final checks.
 
-Implementation of the next feature release has not started. Its scope will be
-set through the roadmap and current-priorities documents before feature work is
-recorded as active.
+Broad `v0.8.0-beta` setup and deployment work is not active. The immediate goal
+is to validate and release the completed foundation without expanding scope.
 
-## Current source structure
+## Completed `v0.7.0-beta` foundation
 
-Recent architecture work is complete on `main`:
+The current source includes:
 
-- `MainActivity` remains the Android composition root and delegates focused work
-  to workflow controllers and supporting classes.
-- `ModEngine` remains the stable engine facade while focused services handle mod
-  library, plugin, deployment, inspection, and archive-history behavior.
-- Profile-specific direct paths are used for game roots, `Data` folders, and
-  archive libraries.
-- Supported legacy Bethesda games use game-aware plugin activation and ordering.
+- Tale of Two Wastelands as a selectable profile with the correct legacy
+  timestamp-based plugin-order policy;
+- one direct-filesystem backend for Game Root, `Data`, Archive Library,
+  deployment, scanning, imports, and plugin timestamp ordering;
+- extracted `MainActivity` workflow ownership and focused services behind the
+  `ModEngine` facade;
+- content-signature detection for ZIP, 7Z, RAR4, and RAR5 archives;
+- signature-based Archive Library scanning and stored format metadata;
+- precise errors for unsupported, encrypted, multipart, corrupt, or unsafe
+  archives where the reader can classify the failure;
+- bounded extraction with path, duplicate, case-collision, entry-count,
+  per-file size, total-size, path-length, and storage-headroom checks;
+- staged and transactional installed-mod replacement;
+- recovery of interrupted replacement transactions at startup and profile
+  activation; and
+- cooperative cancellation for archive copying, preparation, extraction, and
+  automatic or user-selected installation.
 
-The architecture changes were intended to preserve existing behavior. The only
-intentional user-facing removal was the obsolete developer-only v0.5 repair
-action.
+RAR5 is detected accurately but is not currently installable.
 
 ## Latest recorded validation
 
-The completed refactoring passed the repository documentation check, project
-check, JVM unit tests, and debug APK assembly on the development machine.
+The merged foundation passed:
 
-Recorded Android disposable-folder checks cover:
+- `git diff --check`;
+- the full JVM unit-test suite;
+- `./tools/check-project.sh`; and
+- debug APK assembly.
 
-- all-files permission onboarding;
-- direct folder selection and profile-specific persistence;
-- ZIP, 7Z, and RAR archive handling basics;
-- deployment, full redeployment, backup, and restoration;
-- Skyrim Legendary Edition text-file plugin ordering; and
-- Oblivion, Fallout 3, and Fallout: New Vegas timestamp ordering.
+The release-version automation also passed shell syntax checks, JVM tests,
+debug assembly, and the project check while retaining the public
+`v0.6.0-beta` / version-code `2` identity.
 
-See [Direct Storage Benchmark](docs/benchmarks/direct-storage.md) for the
-recorded storage comparison and its limitations.
+These results do not replace final validation of the versioned release
+candidate.
 
-## Next planned work
+## Remaining before publication
 
-1. Improve ZIP, 7Z, and RAR extraction compatibility and failure reporting.
-2. Define which capabilities must block a stable 1.0 release.
-3. Preserve the extracted architecture while adding or fixing behavior.
+1. Complete the real-archive compatibility matrix on the current candidate.
+2. Verify an in-place upgrade from the public `v0.6.0-beta` APK.
+3. Confirm direct-path profile, mod, plugin, and Archive Library state survives
+   the upgrade.
+4. Build the signed release APK and verify its package name, version name,
+   version code, signature, and signing-certificate fingerprint.
+5. Install and test the exact signed artifact, including restart, cancellation,
+   recovery, and safe-folder deployment checks.
+6. Generate final checksums and upload packages, then publish the Git tag,
+   GitHub release, and Nexus Mods update.
 
-## Known limitations and deferred checks
+## Known limitations
 
-- Some RAR and 7Z variants remain unsupported or need clearer errors.
-- Game Root and `Data` folder guidance still needs simpler wording and stronger
-  validation.
-- Real-container plugin output verification remains a release or regression
-  check rather than the next implementation task.
-- TTW setup, `DML_output`, configuration recipes, and INI presets remain planned
-  work until separately scoped.
+- RAR5, password-protected or encrypted archives, and multipart RAR archives are
+  not supported for installation.
+- Unsupported 7Z compression or encryption variants may still be rejected.
+- Android continues to protect other applications' private `Android/data`
+  directories even when all-files access is granted.
+- Game Root and `Data` validation still needs stronger game-specific guidance in
+  a later release.
+- Droid Mod Loader remains beta software. Back up important game folders before
+  testing deployment.
 
 ## Last updated
 
-2026-06-24
+2026-06-29

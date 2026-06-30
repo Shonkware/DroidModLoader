@@ -28,6 +28,79 @@ Use this format for each release:
 
 - Anything users should do before or after updating.
 
+## v0.7.0-beta - Unreleased
+
+### Added
+
+- Added Tale of Two Wastelands as a selectable profile with legacy
+  timestamp-based plugin ordering.
+- Added content-signature detection for ZIP, 7Z, RAR4, and RAR5 archives.
+- Added bounded extraction checks for unsafe paths, duplicate destinations,
+  case collisions, excessive entries, oversized files, excessive total output,
+  long paths, and insufficient storage headroom.
+- Added persistent installed-mod replacement transactions and automatic recovery
+  at startup and profile activation.
+- Added cooperative cancellation for archive copying, extraction, preparation,
+  and installation.
+- Added a canonical `version.properties` source for release version name and
+  version code.
+
+### Changed
+
+- Replaced production Storage Access Framework paths with one direct-filesystem
+  backend for Game Root, `Data`, Archive Library, import, scanning, deployment,
+  overwrite inspection, and plugin timestamp ordering.
+- Archive Library scanning and stored archive metadata now use detected content
+  rather than filename extensions.
+- Mod replacement now stages complete content and preserves the existing
+  installed mod until promotion succeeds.
+- Archive import keeps an archive that was already registered when later
+  installation is cancelled, while removing copied files that were never
+  registered.
+- Split reusable activity workflows and engine responsibilities into focused
+  coordinators and services while preserving `MainActivity` as the Android
+  composition root and `ModEngine` as the stable facade.
+- The displayed app version now comes from the APK build configuration instead
+  of a hardcoded UI string.
+
+### Fixed
+
+- Prevented failed, cancelled, or partial extraction from becoming a successful
+  installed-mod state.
+- Preserved the previous installed mod when replacement staging or promotion
+  fails.
+- Recovered retained replacement transactions after interruption.
+- Removed partial copied and extracted files during cooperative cancellation
+  where cleanup is possible.
+- Reported RAR5, encrypted, multipart, corrupt, and unsupported archive failures
+  more precisely.
+- Recognized supported archives with missing or incorrect filename extensions.
+
+### Known Issues
+
+- RAR5 is detected but is not supported for installation.
+- Password-protected or encrypted archives and multipart RAR archives are not
+  supported.
+- Some uncommon 7Z compression or encryption variants may remain unsupported.
+- Android still blocks access to other applications' protected
+  `Android/data` directories.
+- Game Root and `Data` folder validation still needs stronger game-specific
+  guidance.
+- Droid Mod Loader remains beta software; back up important game folders before
+  testing deployment.
+
+### Upgrade Notes
+
+- Install this version over `v0.6.0-beta`; do not uninstall the existing app
+  first if you want to retain app-managed state.
+- Android 11 and newer require all-files access for DML's shared-storage
+  workflows.
+- Existing profiles and unrelated managed state are retained by the migration.
+  Legacy URI-only Game Root, `Data`, or Archive Library selections require
+  explicit reselection as direct filesystem paths.
+- Final upgrade validation from the public `v0.6.0-beta` APK is required before
+  this release is published.
+
 ## v0.6.0-beta - 2026-06-16
 
 ### Added
