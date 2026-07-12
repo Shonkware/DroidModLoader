@@ -80,6 +80,24 @@ class ArchiveEntryWriterTest {
     }
 
     @Test
+    fun `rejects embedded current-directory archive entry path`() {
+        withFixture("drive-path") { fixture ->
+            val failure = expectReadFailure {
+                fixture.writer().writeFile(
+                    "textures/./bad.dds"
+                ) { output ->
+                    output.write("escape".toByteArray())
+                }
+            }
+
+            assertEquals(
+                ArchiveReadFailureCode.UNSAFE_ENTRY_PATH,
+                failure.code
+            )
+        }
+    }
+
+    @Test
     fun `blocks archive paths containing nul`() {
         withFixture("nul-path") { fixture ->
             val failure = expectReadFailure {
