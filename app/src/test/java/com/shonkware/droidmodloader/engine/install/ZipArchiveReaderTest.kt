@@ -7,6 +7,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util.Random
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -117,6 +118,46 @@ class ZipArchiveReaderTest {
                 fixture.outputDir.listFiles()
                     .orEmpty()
                     .isEmpty()
+            )
+        }
+    }
+
+    @Test
+    fun `truncated zip fails precisely and removes partial output`() {
+        withFixture("truncated") { fixture ->
+            val content = ByteArray(256 * 1024).also { bytes ->
+                Random(1234L).nextBytes(bytes)
+            }
+
+            createZip(fixture.archive) { zip ->
+                zip.putNextEntry(
+                    ZipEntry("Data/truncated.bin")
+                )
+                zip.write(content)
+                zip.closeEntry()
+            }
+
+            val archiveBytes = fixture.archive.readBytes()
+            fixture.archive.writeBytes(
+                archiveBytes.copyOf(
+                    archiveBytes.size / 2
+                )
+            )
+
+            val failure = expectReadFailure {
+                readArchive(fixture)
+            }
+
+            assertEquals(
+                ArchiveReadFailureCode
+                    .CORRUPT_OR_UNSUPPORTED,
+                failure.code
+            )
+            assertFalse(
+                File(
+                    fixture.outputDir,
+                    "Data/truncated.bin"
+                ).exists()
             )
         }
     }

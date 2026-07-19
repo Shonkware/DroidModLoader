@@ -59,7 +59,7 @@ class ArchiveReaderRegistryTest {
             )
 
             assertSame(
-                fixture.rarReader,
+                fixture.rar4Reader,
                 fixture.registry.findReader(archive)
             )
         }
@@ -87,6 +87,28 @@ class ArchiveReaderRegistryTest {
             )
             assertTrue(
                 failure.message.orEmpty().contains("RAR5")
+            )
+        }
+    }
+
+    @Test
+    fun `rar5 signature selects an injected rar5 reader`() {
+        withFixture(
+            name = "rar5-reader",
+            includeRar5Reader = true
+        ) { fixture ->
+            val archive = writeArchive(
+                root = fixture.root,
+                name = "example.rar",
+                bytes = bytes(
+                    0x52, 0x61, 0x72, 0x21,
+                    0x1A, 0x07, 0x01, 0x00
+                )
+            )
+
+            assertSame(
+                fixture.rar5Reader,
+                fixture.registry.findReader(archive)
             )
         }
     }
@@ -173,6 +195,7 @@ class ArchiveReaderRegistryTest {
 
     private fun withFixture(
         name: String,
+        includeRar5Reader: Boolean = false,
         action: (Fixture) -> Unit
     ) {
         val root = Files.createTempDirectory(
@@ -181,13 +204,17 @@ class ArchiveReaderRegistryTest {
 
         val zipReader = TestArchiveReader("zip")
         val sevenZipReader = TestArchiveReader("seven-z")
-        val rarReader = TestArchiveReader("rar")
+        val rar4Reader = TestArchiveReader("rar4")
+        val rar5Reader = TestArchiveReader("rar5")
 
         val registry = ArchiveReaderRegistry(
             formatProbe = ArchiveFormatProbe(),
             zipReader = zipReader,
             sevenZipReader = sevenZipReader,
-            rarReader = rarReader
+            rar4Reader = rar4Reader,
+            rar5Reader = rar5Reader.takeIf {
+                includeRar5Reader
+            }
         )
 
         try {
@@ -197,7 +224,8 @@ class ArchiveReaderRegistryTest {
                     registry = registry,
                     zipReader = zipReader,
                     sevenZipReader = sevenZipReader,
-                    rarReader = rarReader
+                    rar4Reader = rar4Reader,
+                    rar5Reader = rar5Reader
                 )
             )
         } finally {
@@ -253,7 +281,8 @@ class ArchiveReaderRegistryTest {
         val registry: ArchiveReaderRegistry,
         val zipReader: ArchiveReader,
         val sevenZipReader: ArchiveReader,
-        val rarReader: ArchiveReader
+        val rar4Reader: ArchiveReader,
+        val rar5Reader: ArchiveReader
     )
 
     private class TestArchiveReader(

@@ -123,6 +123,47 @@ class SevenZipArchiveReaderTest {
     }
 
     @Test
+    fun `decoder memory limit fails with required and allowed values`() {
+        withFixture("memory-limit") { fixture ->
+            createSevenZ(
+                archive = fixture.archive,
+                method = SevenZMethod.LZMA2
+            ) {
+                file(
+                    entryName = "Data/example.bin",
+                    content = ByteArray(4 * 1024) { index ->
+                        (index % 251).toByte()
+                    }
+                )
+            }
+
+            val failure = expectReadFailure {
+                readArchive(
+                    fixture = fixture,
+                    reader = SevenZipArchiveReader(1)
+                )
+            }
+
+            assertEquals(
+                ArchiveReadFailureCode
+                    .DECODER_MEMORY_LIMIT_EXCEEDED,
+                failure.code
+            )
+            assertTrue(
+                failure.message.orEmpty().contains(
+                    "above DML's safe 1.0 MiB limit"
+                )
+            )
+            assertFalse(
+                File(
+                    fixture.outputDir,
+                    "Data/example.bin"
+                ).exists()
+            )
+        }
+    }
+
+    @Test
     fun `unsafe seven z path is rejected by the shared writer`() {
         withFixture("unsafe-path") { fixture ->
             createSevenZ(
@@ -234,9 +275,11 @@ class SevenZipArchiveReaderTest {
     private fun readArchive(
         fixture: Fixture,
         limits: ExtractionLimits =
-            ExtractionLimits()
+            ExtractionLimits(),
+        reader: SevenZipArchiveReader =
+            SevenZipArchiveReader()
     ) {
-        SevenZipArchiveReader().read(
+        reader.read(
             archive = fixture.archive,
             writer = ArchiveEntryWriter(
                 outputDir = fixture.outputDir,
