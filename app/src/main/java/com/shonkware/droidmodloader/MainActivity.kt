@@ -336,7 +336,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             switchActiveProfile = { profileId ->
                 profileManagementWorkflow.switchActiveProfile(profileId)
             },
-            deleteProfile = { profileId -> profileManagementWorkflow.deleteProfile(profileId) },
+            deleteProfileAction = { profileId -> profileManagementWorkflow.deleteProfile(profileId) },
             saveDashboardSettings = { profileManagementWorkflow.saveDashboardSettings() }
         )
     }

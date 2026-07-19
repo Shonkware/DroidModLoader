@@ -5,7 +5,7 @@ internal class ProfileWorkflowController(
     private val completeFirstSetup: () -> Unit,
     private val createAdditionalProfile: () -> Unit,
     private val switchActiveProfile: (String) -> Unit,
-    private val deleteProfile: (String) -> Unit,
+    private val deleteProfileAction: (String) -> Unit,
     private val saveDashboardSettings: () -> Unit
 ) {
 
@@ -29,7 +29,7 @@ internal class ProfileWorkflowController(
 
     fun deleteProfile(profileId: String) {
         runInBackground {
-            deleteProfile(profileId)
+            deleteProfileAction(profileId)
         }
     }
 
