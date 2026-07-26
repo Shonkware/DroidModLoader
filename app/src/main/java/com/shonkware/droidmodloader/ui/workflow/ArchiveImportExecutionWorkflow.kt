@@ -2,6 +2,10 @@ package com.shonkware.droidmodloader.ui.workflow
 
 import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.download.DownloadedArchiveRecord
+import com.shonkware.droidmodloader.engine.install.ArchiveFormatProbe
+import com.shonkware.droidmodloader.engine.install.ArchiveFormatProbeException
+import com.shonkware.droidmodloader.engine.install.ArchiveReadException
+import com.shonkware.droidmodloader.engine.install.ArchiveReaderRegistry
 import com.shonkware.droidmodloader.engine.install.InstallCancellationController
 import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 import com.shonkware.droidmodloader.engine.install.InstallCancelledException
@@ -147,6 +151,10 @@ internal class ArchiveImportExecutionWorkflow(
     private val refreshDashboard: () -> Unit,
     private val updateArchiveImportInProgress:
         (Boolean) -> Unit,
+    private val archiveFormatProbe:
+        ArchiveFormatProbe = ArchiveFormatProbe(),
+    private val archiveReaderRegistry:
+        ArchiveReaderRegistry = ArchiveReaderRegistry(),
 ) {
     private val activeCancellationController =
         AtomicReference<InstallCancellationController?>(null)
@@ -184,6 +192,36 @@ internal class ArchiveImportExecutionWorkflow(
         try {
             beginOperation("Importing archive...")
 
+            val fileName =
+                sourceFile.name
+                    .takeIf { it.isNotBlank() }
+                    ?: "imported_mod"
+
+            val sourceProbe =
+                archiveFormatProbe.probe(sourceFile)
+
+            appendLog(
+                "Archive preflight format: " +
+                        sourceProbe.format.diagnosticLabel
+            )
+
+            if (sourceProbe.extensionMismatch) {
+                appendLog(
+                    "ARCHIVE WARNING: File extension does not match " +
+                            "detected " +
+                            sourceProbe.format.diagnosticLabel +
+                            " content."
+                )
+            }
+
+            archiveReaderRegistry.findReader(
+                format = sourceProbe.format,
+                archiveName = fileName
+            )
+
+            cancellationController.signal
+                .throwIfCancellationRequested()
+
             engine = createEngine()
 
             if (engine == null) {
@@ -193,11 +231,6 @@ internal class ArchiveImportExecutionWorkflow(
                 )
                 return
             }
-
-            val fileName =
-                sourceFile.name
-                    .takeIf { it.isNotBlank() }
-                    ?: "imported_mod"
 
             val sanitizedName =
                 sanitizeArchiveDisplayName(fileName)
@@ -231,7 +264,7 @@ internal class ArchiveImportExecutionWorkflow(
             )
             appendLog(
                 "Archive format: " +
-                        archiveRecord.archiveFormat
+                        sourceProbe.format.diagnosticLabel
             )
             appendLog(
                 "Archive size: " +
@@ -382,6 +415,20 @@ internal class ArchiveImportExecutionWorkflow(
             cancelOperation(
                 "Archive import cancelled."
             )
+        } catch (exception: ArchiveFormatProbeException) {
+            handleArchiveFailure(
+                archiveLibraryFile = archiveLibraryFile,
+                archiveRegistered = archiveRegistered,
+                failureCode = exception.code.name,
+                exception = exception
+            )
+        } catch (exception: ArchiveReadException) {
+            handleArchiveFailure(
+                archiveLibraryFile = archiveLibraryFile,
+                archiveRegistered = archiveRegistered,
+                failureCode = exception.code.name,
+                exception = exception
+            )
         } catch (throwable: Throwable) {
             if (!archiveRegistered) {
                 removeUnregisteredArchive(
@@ -436,6 +483,31 @@ internal class ArchiveImportExecutionWorkflow(
         )
         appendLog(
             "Archive import cancellation requested."
+        )
+    }
+
+    private fun handleArchiveFailure(
+        archiveLibraryFile: File?,
+        archiveRegistered: Boolean,
+        failureCode: String,
+        exception: Exception
+    ) {
+        if (!archiveRegistered) {
+            removeUnregisteredArchive(
+                archiveLibraryFile,
+                exception
+            )
+        }
+
+        appendLog(
+            "ARCHIVE FAILURE: $failureCode"
+        )
+        appendLog("RESULT: FAIL")
+
+        failOperation(
+            "Import archive failed: " +
+                    exception.message.orEmpty(),
+            null
         )
     }
 

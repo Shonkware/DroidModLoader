@@ -39,6 +39,10 @@ Risk order:
 - Ordinary 7Z import works.
 - RAR4 import works.
 - RAR5 is detected and rejected with a specific unsupported-variant message.
+- Unsupported archive variants and unrecognized signatures fail before a
+  managed archive copy, archive record, or installer plan is created.
+- Controlled archive probe and reader failures use archive-failure diagnostics
+  and do not emit `CRASH TYPE`.
 - Password-protected, encrypted, multipart, corrupt, and unsupported archives
   fail with the clearest available message.
 - A supported archive renamed to another extension is still detected from its
@@ -217,6 +221,20 @@ Run the JVM unit-test suite with:
 ```bash
 ./gradlew testDebugUnitTest
 ```
+## `v0.8.0-beta` Archive Preflight Validation
+
+AYN Thor validation on 2026-07-25 confirmed:
+
+- a supported ZIP passed signature preflight, created one managed archive copy,
+  completed installation, and logged `RESULT: PASS`;
+- RAR5 was detected as `rar5` and rejected as `UNSUPPORTED_VARIANT` before any
+  new managed archive copy was created;
+- the pre-existing RAR5 managed-copy count remained unchanged;
+- controlled RAR5 rejection emitted no `CRASH TYPE`; and
+- the same DML process remained alive after both tests.
+
+RAR5 remains unsupported for installation.
+
 ## `v0.7.0-beta` Release Validation
 
 The release candidate passed:

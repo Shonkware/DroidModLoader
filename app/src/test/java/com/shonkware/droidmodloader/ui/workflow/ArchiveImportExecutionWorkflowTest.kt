@@ -13,6 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -251,6 +252,140 @@ class ArchiveImportExecutionWorkflowTest {
         )
     }
 
+
+    @Test
+    fun rar5PreflightRejectsBeforeCopyOrRegistration() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        val sourceArchive =
+            harness.newSourceArchive(
+                name = "Unsupported RAR5.rar",
+                bytes = byteArrayOf(
+                    0x52, 0x61, 0x72, 0x21,
+                    0x1A, 0x07, 0x01, 0x00
+                )
+            )
+
+        harness.workflow.importArchive(sourceArchive)
+
+        assertNull(engine.registeredArchiveFile)
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
+        assertTrue(sourceArchive.exists())
+        assertTrue(
+            harness.logs.contains(
+                "Archive preflight format: rar5"
+            )
+        )
+        assertTrue(
+            harness.logs.contains(
+                "ARCHIVE FAILURE: UNSUPPORTED_VARIANT"
+            )
+        )
+        assertFalse(
+            harness.logs.any {
+                it.startsWith("CRASH TYPE:")
+            }
+        )
+        assertEquals(1, harness.failures.size)
+        assertTrue(
+            harness.failures.single().first.contains(
+                "RAR5 archives are not supported"
+            )
+        )
+        assertNull(harness.failures.single().second)
+    }
+
+    @Test
+    fun unknownFormatPreflightRejectsBeforeCopyOrRegistration() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        val sourceArchive =
+            harness.newSourceArchive(
+                name = "Unknown.zip",
+                bytes = byteArrayOf(
+                    0x00, 0x01, 0x02, 0x03,
+                    0x04, 0x05, 0x06, 0x07
+                )
+            )
+
+        harness.workflow.importArchive(sourceArchive)
+
+        assertNull(engine.registeredArchiveFile)
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
+        assertTrue(sourceArchive.exists())
+        assertTrue(
+            harness.logs.contains(
+                "ARCHIVE FAILURE: UNSUPPORTED_FORMAT"
+            )
+        )
+        assertFalse(
+            harness.logs.any {
+                it.startsWith("CRASH TYPE:")
+            }
+        )
+        assertEquals(1, harness.failures.size)
+        assertNull(harness.failures.single().second)
+    }
+
+    @Test
+    fun rar4PreflightLogsDistinctFormatAndContinues() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        val sourceArchive =
+            harness.newSourceArchive(
+                name = "Supported RAR4.rar",
+                bytes = byteArrayOf(
+                    0x52, 0x61, 0x72, 0x21,
+                    0x1A, 0x07, 0x00
+                )
+            )
+
+        harness.workflow.importArchive(sourceArchive)
+
+        assertNotNull(engine.registeredArchiveFile)
+        assertTrue(
+            harness.logs.contains(
+                "Archive preflight format: rar4"
+            )
+        )
+        assertTrue(
+            harness.logs.contains(
+                "Archive format: rar4"
+            )
+        )
+        assertTrue(harness.logs.contains("RESULT: PASS"))
+        assertTrue(harness.failures.isEmpty())
+    }
+
+    @Test
+    fun unexpectedFailureStillUsesCrashDiagnosticsAndCleansCopy() {
+        val failure =
+            IllegalStateException("registration failed")
+        val engine =
+            FakeArchiveImportEngine().apply {
+                registerFailure = failure
+            }
+        val harness = WorkflowHarness(engine)
+
+        harness.workflow.importArchive(
+            harness.sourceArchive
+        )
+
+        assertNull(engine.registeredArchiveFile)
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
+        assertTrue(
+            harness.logs.contains(
+                "CRASH TYPE: java.lang.IllegalStateException"
+            )
+        )
+        assertTrue(harness.logs.contains("RESULT: FAIL"))
+        assertEquals(1, harness.failures.size)
+        assertSame(
+            failure,
+            harness.failures.single().second
+        )
+    }
+
     private inner class WorkflowHarness(
         engine: FakeArchiveImportEngine?
     ) {
@@ -259,11 +394,13 @@ class ArchiveImportExecutionWorkflowTest {
 
         val importActiveStates = mutableListOf<Boolean>()
         val sourceArchive =
-            temporaryFolder
-                .newFile("Example Archive.zip")
-                .apply {
-                    writeText("archive payload")
-                }
+            newSourceArchive(
+                name = "Example Archive.zip",
+                bytes = byteArrayOf(
+                    0x50, 0x4B, 0x03, 0x04,
+                    0x00, 0x00, 0x00, 0x00
+                )
+            )
 
         val logs =
             mutableListOf<String>()
@@ -307,6 +444,24 @@ class ArchiveImportExecutionWorkflowTest {
                     )
                 }
             )
+
+        fun newSourceArchive(
+            name: String,
+            bytes: ByteArray
+        ): File {
+            return temporaryFolder
+                .newFile(name)
+                .apply {
+                    writeBytes(bytes)
+                }
+        }
+
+        fun archiveLibraryFiles(): List<File> {
+            return File(
+                external,
+                "downloads/archive_library"
+            ).listFiles()?.toList().orEmpty()
+        }
 
         val workflow =
             ArchiveImportExecutionWorkflow(
@@ -380,6 +535,9 @@ class ArchiveImportExecutionWorkflowTest {
         var registeredArchiveFile:
                 File? = null
 
+        var registerFailure:
+                RuntimeException? = null
+
         var beforePrepareCompletes:
                 ((InstallCancellationSignal) -> Unit)? =
             null
@@ -406,6 +564,10 @@ class ArchiveImportExecutionWorkflowTest {
             originalDisplayName: String,
             sourcePath: String?
         ): DownloadedArchiveRecord {
+            registerFailure?.let { failure ->
+                throw failure
+            }
+
             registeredArchiveFile =
                 archiveFile
 

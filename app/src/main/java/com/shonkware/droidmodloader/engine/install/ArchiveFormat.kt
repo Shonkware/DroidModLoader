@@ -4,23 +4,28 @@ import java.io.IOException
 
 enum class ArchiveFormat(
     val expectedExtensions: Set<String>,
-    val metadataLabel: String
+    val metadataLabel: String,
+    val diagnosticLabel: String
 ) {
     ZIP(
         expectedExtensions = setOf("zip"),
-        metadataLabel = "zip"
+        metadataLabel = "zip",
+        diagnosticLabel = "zip"
     ),
     SEVEN_Z(
         expectedExtensions = setOf("7z"),
-        metadataLabel = "7z"
+        metadataLabel = "7z",
+        diagnosticLabel = "7z"
     ),
     RAR4(
         expectedExtensions = setOf("rar"),
-        metadataLabel = "rar"
+        metadataLabel = "rar",
+        diagnosticLabel = "rar4"
     ),
     RAR5(
         expectedExtensions = setOf("rar"),
-        metadataLabel = "rar"
+        metadataLabel = "rar",
+        diagnosticLabel = "rar5"
     )
 }
 

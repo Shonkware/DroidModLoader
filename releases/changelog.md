@@ -28,6 +28,33 @@ Use this format for each release:
 
 - Anything users should do before or after updating.
 
+## v0.8.0-beta - Unreleased
+
+### Changed
+
+- Archive imports now identify the source format and confirm reader support
+  before copying into DML's managed archive library.
+- Archive diagnostics distinguish RAR4 and RAR5 while preserving existing
+  stored `rar` metadata compatibility.
+- ZIP and 7Z reader failure handling now provides clearer bounded-memory,
+  corruption, and cleanup behavior.
+
+### Fixed
+
+- Unsupported RAR5 archives and unrecognized signatures no longer create a
+  managed archive copy, archive record, or installer session before rejection.
+- Controlled archive probe and reader failures no longer use crash-style
+  diagnostics or attach an expected throwable stack trace.
+- Supported ZIP import behavior remains unchanged after preflight was moved
+  ahead of managed-library copying.
+
+### Known Issues
+
+- RAR5 is detected but remains unsupported for installation.
+- Password-protected or encrypted archives and multipart RAR archives remain
+  unsupported.
+- Some uncommon 7Z compression or encryption variants may remain unsupported.
+
 ## v0.7.0-beta - 2026-06-29
 
 ### Added
