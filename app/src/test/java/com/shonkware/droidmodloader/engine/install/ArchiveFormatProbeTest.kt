@@ -222,6 +222,26 @@ class ArchiveFormatProbeTest {
         }
     }
 
+    @Test
+    fun `rar variants keep compatible metadata and distinct diagnostics`() {
+        assertEquals(
+            "rar",
+            ArchiveFormat.RAR4.metadataLabel
+        )
+        assertEquals(
+            "rar",
+            ArchiveFormat.RAR5.metadataLabel
+        )
+        assertEquals(
+            "rar4",
+            ArchiveFormat.RAR4.diagnosticLabel
+        )
+        assertEquals(
+            "rar5",
+            ArchiveFormat.RAR5.diagnosticLabel
+        )
+    }
+
     private fun writeArchive(
         root: File,
         name: String,

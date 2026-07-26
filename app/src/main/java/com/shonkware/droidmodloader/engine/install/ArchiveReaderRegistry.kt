@@ -20,7 +20,17 @@ class ArchiveReaderRegistry internal constructor(
     fun findReader(archive: File): ArchiveReader {
         val probeResult = formatProbe.probe(archive)
 
-        return when (probeResult.format) {
+        return findReader(
+            format = probeResult.format,
+            archiveName = archive.name
+        )
+    }
+
+    fun findReader(
+        format: ArchiveFormat,
+        archiveName: String
+    ): ArchiveReader {
+        return when (format) {
             ArchiveFormat.ZIP -> zipReader
             ArchiveFormat.SEVEN_Z -> sevenZipReader
             ArchiveFormat.RAR4 -> rar4Reader
@@ -31,7 +41,7 @@ class ArchiveReaderRegistry internal constructor(
                             .UNSUPPORTED_VARIANT,
                     message =
                         "RAR5 archives are not supported by this DML " +
-                                "release: ${archive.name}"
+                                "release: $archiveName"
                 )
         }
     }

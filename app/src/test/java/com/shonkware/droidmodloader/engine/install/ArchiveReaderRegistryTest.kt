@@ -92,6 +92,26 @@ class ArchiveReaderRegistryTest {
     }
 
     @Test
+    fun `rar5 format selection fails before archive copying`() {
+        withFixture("rar5-format") { fixture ->
+            val failure = expectReadFailure {
+                fixture.registry.findReader(
+                    format = ArchiveFormat.RAR5,
+                    archiveName = "example.rar"
+                )
+            }
+
+            assertEquals(
+                ArchiveReadFailureCode.UNSUPPORTED_VARIANT,
+                failure.code
+            )
+            assertTrue(
+                failure.message.orEmpty().contains("example.rar")
+            )
+        }
+    }
+
+    @Test
     fun `rar5 signature selects an injected rar5 reader`() {
         withFixture(
             name = "rar5-reader",
