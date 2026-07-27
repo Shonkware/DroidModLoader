@@ -5,6 +5,9 @@ import com.shonkware.droidmodloader.engine.data.GameDeploymentConfigRepository
 import com.shonkware.droidmodloader.engine.deploy.DeploymentManager
 import com.shonkware.droidmodloader.engine.deploy.DeploymentResult
 import com.shonkware.droidmodloader.engine.deploy.DeploymentTargetIdentity
+import com.shonkware.droidmodloader.engine.deploy.GameTargetType
+import com.shonkware.droidmodloader.engine.deploy.GameTargetValidationSeverity
+import com.shonkware.droidmodloader.engine.deploy.GameTargetValidator
 import com.shonkware.droidmodloader.engine.deploy.ScopedDeploymentResult
 import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalPlanSummary
 import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalRecord
@@ -36,6 +39,8 @@ internal class DeploymentService(
 ) {
     private val gameDeploymentConfigRepository = GameDeploymentConfigRepository(gameConfigFile)
     private val directPathValidator = DirectPathValidator()
+    private val gameTargetValidator = GameTargetValidator(directPathValidator)
+    private val deploymentPreflightChecker = DeploymentPreflightChecker(gameTargetValidator)
 
     private fun getCurrentDataWinningRecords(): List<FileRecord> = currentDataWinningRecords()
 
@@ -67,7 +72,7 @@ internal class DeploymentService(
         val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val preflight = DeploymentPreflightChecker().check(
+        val preflight = deploymentPreflightChecker.check(
             config = config,
             plan = plan
         )
@@ -97,6 +102,8 @@ internal class DeploymentService(
             val dataWinningRecords = getCurrentDataWinningRecords()
 
             val (newDataManifest, dataResult) = deployRecordsToConfiguredTarget(
+                gameId = gameId,
+                targetType = GameTargetType.DATA,
                 oldManifest = oldDataManifest,
                 newWinningRecords = dataWinningRecords,
                 realDeployEnabled = config?.realDeployEnabled == true,
@@ -122,6 +129,8 @@ internal class DeploymentService(
 
             val rootResult = if (canDeployRoot && (rootWinningRecords.isNotEmpty() || oldRootManifest.isNotEmpty())) {
                 val (newRootManifest, result) = deployRecordsToConfiguredTarget(
+                    gameId = gameId,
+                    targetType = GameTargetType.GAME_ROOT,
                     oldManifest = oldRootManifest,
                     newWinningRecords = rootWinningRecords,
                     realDeployEnabled = config?.realDeployEnabled == true,
@@ -179,7 +188,7 @@ internal class DeploymentService(
         val plan = buildFullRedeployPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val preflight = DeploymentPreflightChecker().check(
+        val preflight = deploymentPreflightChecker.check(
             config = config,
             plan = plan
         )
@@ -223,6 +232,8 @@ internal class DeploymentService(
             )
 
             val (newDataManifest, dataResult) = deployRecordsToConfiguredTarget(
+                gameId = gameId,
+                targetType = GameTargetType.DATA,
                 oldManifest = forcedOldDataManifest,
                 newWinningRecords = dataWinningRecords,
                 realDeployEnabled = config?.realDeployEnabled == true,
@@ -251,6 +262,8 @@ internal class DeploymentService(
                 )
 
                 val (newRootManifest, result) = deployRecordsToConfiguredTarget(
+                    gameId = gameId,
+                    targetType = GameTargetType.GAME_ROOT,
                     oldManifest = forcedOldRootManifest,
                     newWinningRecords = rootWinningRecords,
                     realDeployEnabled = config?.realDeployEnabled == true,
@@ -305,6 +318,8 @@ internal class DeploymentService(
 
 
     private fun deployRecordsToConfiguredTarget(
+        gameId: String,
+        targetType: GameTargetType,
         oldManifest: List<DeploymentRecord>,
         newWinningRecords: List<FileRecord>,
         realDeployEnabled: Boolean,
@@ -312,8 +327,21 @@ internal class DeploymentService(
         fallbackRootDir: File,
         backupRootDir: File
     ): Pair<List<DeploymentRecord>, DeploymentResult> {
-        val deployTarget = if (realDeployEnabled && validateTargetDataPath(targetPath)) {
-            File(targetPath)
+        val deployTarget = if (realDeployEnabled) {
+            val validation = gameTargetValidator.validateTarget(
+                gameId = gameId,
+                targetType = targetType,
+                path = targetPath
+            )
+            check(validation.canDeploy && validation.canonicalPath != null) {
+                buildString {
+                    append("Configured ${targetType.displayName} target failed validation after preflight")
+                    validation.findings
+                        .firstOrNull { it.severity == GameTargetValidationSeverity.ERROR }
+                        ?.let { append(": ${it.title} ${it.details}".trimEnd()) }
+                }
+            }
+            File(requireNotNull(validation.canonicalPath))
         } else {
             fallbackRootDir
         }
@@ -365,7 +393,7 @@ internal class DeploymentService(
         val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val preflight = DeploymentPreflightChecker().check(
+        val preflight = deploymentPreflightChecker.check(
             config = config,
             plan = plan
         )
@@ -428,7 +456,11 @@ internal class DeploymentService(
         }
 
         return !config.rootPathReselectionRequired &&
-                validateTargetDataPath(config.targetRootPath)
+                gameTargetValidator.validateTarget(
+                    gameId = config.gameId,
+                    targetType = GameTargetType.GAME_ROOT,
+                    path = config.targetRootPath
+                ).canDeploy
     }
 
 
@@ -484,14 +516,22 @@ internal class DeploymentService(
     private fun getDeploymentTargetIdentity(gameId: String): DeploymentTargetIdentity {
         val config = getGameDeploymentConfig(gameId)
 
+        val validation = config
+            ?.takeIf { it.realDeployEnabled && !it.dataPathReselectionRequired }
+            ?.let {
+                gameTargetValidator.validateTarget(
+                    gameId = gameId,
+                    targetType = GameTargetType.DATA,
+                    path = it.targetDataPath
+                )
+            }
+
         return when {
-            config != null &&
-                    config.realDeployEnabled &&
-                    validateTargetDataPath(config.targetDataPath) -> {
+            validation?.canDeploy == true && validation.canonicalPath != null -> {
                 DeploymentTargetIdentity(
                     gameId = gameId,
                     mode = "real_path",
-                    target = config.targetDataPath
+                    target = validation.canonicalPath
                 )
             }
 
@@ -542,14 +582,22 @@ internal class DeploymentService(
     private fun getRootDeploymentTargetIdentity(gameId: String): DeploymentTargetIdentity {
         val config = getGameDeploymentConfig(gameId)
 
+        val validation = config
+            ?.takeIf { it.realDeployEnabled && !it.rootPathReselectionRequired }
+            ?.let {
+                gameTargetValidator.validateTarget(
+                    gameId = gameId,
+                    targetType = GameTargetType.GAME_ROOT,
+                    path = it.targetRootPath
+                )
+            }
+
         return when {
-            config != null &&
-                    config.realDeployEnabled &&
-                    validateTargetDataPath(config.targetRootPath) -> {
+            validation?.canDeploy == true && validation.canonicalPath != null -> {
                 DeploymentTargetIdentity(
                     gameId = gameId,
                     mode = "root_real_path",
-                    target = config.targetRootPath
+                    target = validation.canonicalPath
                 )
             }
 
@@ -565,21 +613,71 @@ internal class DeploymentService(
 
 
     fun getDeploymentTargetDebugSummary(gameId: String): String {
+        val config = getGameDeploymentConfig(gameId)
         val identity = getDeploymentTargetIdentity(gameId)
+        val rootIdentity = getRootDeploymentTargetIdentity(gameId)
         val manifestName = buildTargetScopedFileName("deployment_manifest", gameId)
         val rootManifestName = buildTargetScopedFileNameForIdentity(
             prefix = "deployment_manifest_root",
-            identity = getRootDeploymentTargetIdentity(gameId)
+            identity = rootIdentity
         )
         val baselineName = buildTargetScopedFileName("data_baseline", gameId)
 
+        val dataValidation = config
+            ?.takeIf { it.realDeployEnabled && !it.dataPathReselectionRequired }
+            ?.let {
+                gameTargetValidator.validateTarget(
+                    gameId = gameId,
+                    targetType = GameTargetType.DATA,
+                    path = it.targetDataPath
+                )
+            }
+        val rootValidation = config
+            ?.takeIf {
+                it.realDeployEnabled &&
+                        !it.rootPathReselectionRequired &&
+                        it.targetRootPath.isNotBlank()
+            }
+            ?.let {
+                gameTargetValidator.validateTarget(
+                    gameId = gameId,
+                    targetType = GameTargetType.GAME_ROOT,
+                    path = it.targetRootPath
+                )
+            }
 
         return buildString {
             appendLine("Deployment target identity:")
             appendLine(identity.displaySummary())
+            appendLine("Root target identity:")
+            appendLine(rootIdentity.displaySummary())
             appendLine("Manifest file: $manifestName")
             appendLine("Baseline file: $baselineName")
             appendLine("Root manifest file: $rootManifestName")
+            if (dataValidation != null) {
+                appendLine()
+                append(dataValidation.toDebugSummary())
+            }
+            if (rootValidation != null) {
+                appendLine()
+                append(rootValidation.toDebugSummary())
+            }
+            if (dataValidation != null && rootValidation != null) {
+                val relationshipFindings = gameTargetValidator.validateRelationship(
+                    dataResult = dataValidation,
+                    rootResult = rootValidation
+                )
+                if (relationshipFindings.isNotEmpty()) {
+                    appendLine()
+                    appendLine("Target Relationship Validation")
+                    relationshipFindings.forEach { finding ->
+                        appendLine("  ${finding.severity}: ${finding.title}")
+                        if (finding.details.isNotBlank()) {
+                            appendLine("    ${finding.details}")
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -588,7 +686,7 @@ internal class DeploymentService(
         val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        return DeploymentPreflightChecker().check(
+        return deploymentPreflightChecker.check(
             config = config,
             plan = plan
         )
@@ -598,7 +696,7 @@ internal class DeploymentService(
         val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val result = DeploymentPreflightChecker().check(
+        val result = deploymentPreflightChecker.check(
             config = config,
             plan = plan
         )
@@ -750,7 +848,7 @@ internal class DeploymentService(
         val plan = buildFullRedeployPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val preflight = DeploymentPreflightChecker().check(
+        val preflight = deploymentPreflightChecker.check(
             config = config,
             plan = plan
         )

@@ -30,8 +30,16 @@ Risk order:
 
 - User can select a target folder.
 - Target is remembered after restart.
-- Wrong-looking targets show warnings.
-- Diagnostics show target information.
+- Data and Game Root targets are identified separately.
+- Valid targets contain the expected game executable or official base master.
+- Data selected as Game Root and Game Root selected as Data are blocked.
+- Known markers for another game block physical deployment.
+- Data and Game Root from different installations are blocked.
+- A Data folder with valid markers and an unusual name warns but remains deployable.
+- A clean Fallout New Vegas target is accepted before an initial TTW deployment.
+- Diagnostics show canonical path, target type, validation status, and findings.
+- Failed target preflight creates no deployment journal and writes no target
+  files.
 
 ### Mod Import
 
@@ -195,7 +203,8 @@ from source rather than duplicated as a hand-maintained table here.
 
 Current coverage includes:
 
-- path normalization and deployment-scope classification;
+- path normalization, game aware Data and Game Root target validation, target
+  relationship checks, and deployment scope classification;
 - profile storage paths and legacy-state migration;
 - plugin discovery, game-aware activation output, transactional plugin-output
   replacement, and rollback-safe legacy timestamp ordering;
