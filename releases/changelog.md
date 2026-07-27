@@ -32,6 +32,13 @@ Use this format for each release:
 
 ### Changed
 
+- Physical deployment preflight now identifies Data and Game Root separately,
+  validates executable and master markers for the selected game, and checks that both paths
+  belong to the same installation.
+- Target diagnostics now include target type, canonical path, validation status,
+  and structured findings.
+- A clean Fallout New Vegas target remains valid for an initial Tale of Two
+  Wastelands deployment; an existing TTW master is reported but not required.
 - Archive imports now identify the source format and confirm reader support
   before copying into DML's managed archive library.
 - Archive diagnostics distinguish RAR4 and RAR5 while preserving existing
@@ -41,6 +48,12 @@ Use this format for each release:
 
 ### Fixed
 
+- Physical deployment now stops before journal creation or target writes when
+  the selected folder belongs to another supported game, uses the wrong target
+  role, is obviously too broad, or does not match the selected Data/Game Root
+  installation pair.
+- Real target selection now fails safely if the target changes after preflight
+  instead of silently falling back to simulated output.
 - Unsupported RAR5 archives and unrecognized signatures no longer create a
   managed archive copy, archive record, or installer session before rejection.
 - Controlled archive probe and reader failures no longer use crash-style
@@ -50,6 +63,9 @@ Use this format for each release:
 
 ### Known Issues
 
+- Game target validation currently uses a bounded executable and base master
+  marker set. Guidance during folder selection and a complete distribution
+  specific marker matrix remain future work.
 - RAR5 is detected but remains unsupported for installation.
 - Password-protected or encrypted archives and multipart RAR archives remain
   unsupported.

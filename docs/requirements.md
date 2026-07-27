@@ -38,7 +38,7 @@ Done when:
 
 ### REQ-GAME-002: Identify Target Type
 
-Status: Planned
+Status: In Progress
 
 Droid Mod Loader must distinguish between Data-folder deployment and game-root deployment.
 
@@ -51,7 +51,7 @@ Done when:
 
 ### REQ-GAME-003: Validate Target
 
-Status: Planned
+Status: In Progress
 
 Droid Mod Loader must validate the selected target before deployment.
 

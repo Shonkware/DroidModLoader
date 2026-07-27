@@ -13,14 +13,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 
 class DeploymentPreflightCheckerTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
     @Test
-    fun writableDirectDataPathPassesTargetPreflight() {
-        val dataDir = temporaryFolder.newFolder("Data")
+    fun gameAwareDataPathPassesTargetPreflight() {
+        val root = temporaryFolder.newFolder("fnv-root")
+        val dataDir = File(root, "Data").apply { mkdirs() }
+        File(dataDir, "FalloutNV.esm").writeText("fixture")
 
         val result = DeploymentPreflightChecker().check(
             config = config(targetDataPath = dataDir.canonicalPath),
@@ -29,6 +32,58 @@ class DeploymentPreflightCheckerTest {
 
         assertTrue(result.canDeploy)
         assertTrue(result.issues.any { it.title == "Data target is available." })
+    }
+
+    @Test
+    fun wrongGameDataPathBlocksTargetPreflight() {
+        val dataDir = temporaryFolder.newFolder("wrong-game-data")
+        File(dataDir, "Fallout3.esm").writeText("fixture")
+
+        val result = DeploymentPreflightChecker().check(
+            config = config(targetDataPath = dataDir.canonicalPath),
+            plan = emptyPlan()
+        )
+
+        assertFalse(result.canDeploy)
+        assertTrue(result.issues.any { it.title.contains("another game") })
+    }
+
+    @Test
+    fun mismatchedDataAndRootTargetsBlockPreflight() {
+        val dataRoot = temporaryFolder.newFolder("data-install")
+        val rootTarget = temporaryFolder.newFolder("root-install")
+        val dataDir = File(dataRoot, "Data").apply { mkdirs() }
+        File(dataDir, "FalloutNV.esm").writeText("fixture")
+        File(rootTarget, "FalloutNV.exe").writeText("fixture")
+
+        val result = DeploymentPreflightChecker().check(
+            config = config(
+                targetDataPath = dataDir.canonicalPath,
+                targetRootPath = rootTarget.canonicalPath
+            ),
+            plan = emptyPlan()
+        )
+
+        assertFalse(result.canDeploy)
+        assertTrue(
+            result.issues.any {
+                it.title == "Data and Game Root targets do not belong to the same installation."
+            }
+        )
+    }
+
+    @Test
+    fun simulatedDeploymentDoesNotRequireGameMarkers() {
+        val result = DeploymentPreflightChecker().check(
+            config = config(
+                targetDataPath = "",
+                realDeployEnabled = false
+            ),
+            plan = emptyPlan()
+        )
+
+        assertTrue(result.canDeploy)
+        assertTrue(result.issues.any { it.title == "Real deploy is disabled." })
     }
 
     @Test
@@ -53,6 +108,7 @@ class DeploymentPreflightCheckerTest {
     @Test
     fun rootOperationsRequireWritableDirectRootPath() {
         val dataDir = temporaryFolder.newFolder("Data")
+        File(dataDir, "FalloutNV.esm").writeText("fixture")
         val plan = ScopedDeploymentPlan(
             dataPlan = DeploymentPlan(DeploymentPlanScope.DATA, emptyList()),
             rootPlan = DeploymentPlan(
@@ -86,13 +142,14 @@ class DeploymentPreflightCheckerTest {
     private fun config(
         targetDataPath: String,
         targetRootPath: String = "",
+        realDeployEnabled: Boolean = true,
         dataPathReselectionRequired: Boolean = false,
         rootPathReselectionRequired: Boolean = false
     ) = GameDeploymentConfig(
-        gameId = "fallout_new_vegas",
-        displayName = "Fallout: New Vegas",
+        gameId = "fallout_nv",
+        displayName = "Fallout New Vegas",
         targetDataPath = targetDataPath,
-        realDeployEnabled = true,
+        realDeployEnabled = realDeployEnabled,
         targetRootPath = targetRootPath,
         dataPathReselectionRequired = dataPathReselectionRequired,
         rootPathReselectionRequired = rootPathReselectionRequired

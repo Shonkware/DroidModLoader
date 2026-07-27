@@ -92,13 +92,6 @@ The accepted direction uses Home, Mods, Plugins, and Deploy as the primary works
 
 This is design documentation only. It does not describe behavior included in `v0.7.0-beta`, and broad `v0.9.0-beta` implementation has not started.
 
-## Next priorities
-
-1. Review and merge the validated unsupported-archive preflight fix.
-2. Continue bounded `v0.8.0-beta` archive-stability, setup, deployment, and
-   recovery work.
-3. Continue defining the stable 1.0 acceptance boundary.
-
 ## Last updated
 
-2026-07-25
+2026-07-26

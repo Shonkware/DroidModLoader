@@ -1,9 +1,16 @@
 package com.shonkware.droidmodloader.engine.deploy.plan
 
+import com.shonkware.droidmodloader.engine.deploy.GameTargetValidationFinding
+import com.shonkware.droidmodloader.engine.deploy.GameTargetValidationResult
+import com.shonkware.droidmodloader.engine.deploy.GameTargetValidationSeverity
+import com.shonkware.droidmodloader.engine.deploy.GameTargetValidator
+import com.shonkware.droidmodloader.engine.deploy.GameTargetType
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
 import java.io.File
 
-class DeploymentPreflightChecker {
+class DeploymentPreflightChecker(
+    private val gameTargetValidator: GameTargetValidator = GameTargetValidator()
+) {
 
     fun check(
         config: GameDeploymentConfig?,
@@ -62,7 +69,7 @@ class DeploymentPreflightChecker {
     ) {
         if (config == null || !config.realDeployEnabled) return
 
-        if (config.dataPathReselectionRequired) {
+        val dataResult = if (config.dataPathReselectionRequired) {
             issues.add(
                 DeploymentPreflightIssue(
                     severity = DeploymentPreflightSeverity.ERROR,
@@ -70,9 +77,11 @@ class DeploymentPreflightChecker {
                     details = "The previous folder permission cannot be converted into a direct path."
                 )
             )
+            null
         } else {
-            checkPathTarget(
-                label = "Data target",
+            validateTarget(
+                gameId = config.gameId,
+                targetType = GameTargetType.DATA,
                 path = config.targetDataPath,
                 required = true,
                 issues = issues
@@ -80,7 +89,7 @@ class DeploymentPreflightChecker {
         }
 
         val rootOperationsNeeded = plan.rootPlan.operationCount > 0
-        if (config.rootPathReselectionRequired && rootOperationsNeeded) {
+        val rootResult = if (config.rootPathReselectionRequired && rootOperationsNeeded) {
             issues.add(
                 DeploymentPreflightIssue(
                     severity = DeploymentPreflightSeverity.ERROR,
@@ -88,87 +97,68 @@ class DeploymentPreflightChecker {
                     details = "The previous folder permission cannot be converted into a direct path."
                 )
             )
+            null
         } else if (config.targetRootPath.isNotBlank() || rootOperationsNeeded) {
-            checkPathTarget(
-                label = "Game Root target",
+            validateTarget(
+                gameId = config.gameId,
+                targetType = GameTargetType.GAME_ROOT,
                 path = config.targetRootPath,
                 required = rootOperationsNeeded,
                 issues = issues
             )
+        } else {
+            null
+        }
+
+        if (dataResult != null && rootResult != null) {
+            gameTargetValidator.validateRelationship(
+                dataResult = dataResult,
+                rootResult = rootResult
+            ).forEach { finding -> issues.add(finding.toPreflightIssue()) }
         }
     }
 
-    private fun checkPathTarget(
-        label: String,
+    private fun validateTarget(
+        gameId: String,
+        targetType: GameTargetType,
         path: String,
         required: Boolean,
         issues: MutableList<DeploymentPreflightIssue>
-    ) {
+    ): GameTargetValidationResult? {
         if (path.isBlank()) {
             if (required) {
                 issues.add(
                     DeploymentPreflightIssue(
                         severity = DeploymentPreflightSeverity.ERROR,
-                        title = "$label is not selected.",
+                        title = "${targetType.displayName} target is not selected.",
                         details = "Choose a direct filesystem folder before real deploy."
                     )
                 )
             }
-            return
+            return null
         }
 
-        val folder = runCatching { File(path).canonicalFile }.getOrElse { error ->
-            issues.add(
-                DeploymentPreflightIssue(
-                    severity = DeploymentPreflightSeverity.ERROR,
-                    title = "$label path could not be resolved.",
-                    details = error.message ?: path
-                )
-            )
-            return
+        return gameTargetValidator.validateTarget(
+            gameId = gameId,
+            targetType = targetType,
+            path = path
+        ).also { result ->
+            result.findings.forEach { finding ->
+                issues.add(finding.toPreflightIssue())
+            }
         }
+    }
 
-        when {
-            !folder.exists() -> issues.add(
-                DeploymentPreflightIssue(
-                    severity = DeploymentPreflightSeverity.ERROR,
-                    title = "$label path does not exist.",
-                    details = folder.path
-                )
-            )
-
-            !folder.isDirectory -> issues.add(
-                DeploymentPreflightIssue(
-                    severity = DeploymentPreflightSeverity.ERROR,
-                    title = "$label path is not a folder.",
-                    details = folder.path
-                )
-            )
-
-            !folder.canRead() -> issues.add(
-                DeploymentPreflightIssue(
-                    severity = DeploymentPreflightSeverity.ERROR,
-                    title = "$label path is not readable.",
-                    details = folder.path
-                )
-            )
-
-            !folder.canWrite() -> issues.add(
-                DeploymentPreflightIssue(
-                    severity = DeploymentPreflightSeverity.ERROR,
-                    title = "$label path is not writable.",
-                    details = folder.path
-                )
-            )
-
-            else -> issues.add(
-                DeploymentPreflightIssue(
-                    severity = DeploymentPreflightSeverity.INFO,
-                    title = "$label is available.",
-                    details = folder.path
-                )
-            )
-        }
+    private fun GameTargetValidationFinding.toPreflightIssue(): DeploymentPreflightIssue {
+        return DeploymentPreflightIssue(
+            severity = when (severity) {
+                GameTargetValidationSeverity.INFO -> DeploymentPreflightSeverity.INFO
+                GameTargetValidationSeverity.WARNING -> DeploymentPreflightSeverity.WARNING
+                GameTargetValidationSeverity.ERROR -> DeploymentPreflightSeverity.ERROR
+            },
+            title = title,
+            details = details
+        )
     }
 
     private fun checkPlanPaths(
